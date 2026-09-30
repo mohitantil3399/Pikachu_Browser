@@ -245,9 +245,12 @@ class AgenticDocBrowser(QMainWindow):
         self.trigger_indexing(url)
 
     def trigger_indexing(self, url: str):
-        # Don't index local searxng homepage
+        # Don't index local landing page or SearXNG homepage
         if "localhost:8080" in url:
             self.drawer.set_status("SearXNG Web Search Engine active.")
+            return
+        if url.startswith("file://") and ("home.html" in url or "assets" in url):
+            self.drawer.set_status("Welcome to Pikachu Browser · Ready")
             return
 
         if self.indexer_worker and self.indexer_worker.isRunning():
