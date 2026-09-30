@@ -1,0 +1,138 @@
+# =====================================================================
+# Pikachu AI Browser — Automated Setup & Configuration Specification
+# =====================================================================
+version: "1.0"
+
+project:
+  name: "Pikachu Browser"
+  title: "Pikachu AI - Agentic Web & Research Browser"
+  description: "Agentic research browser with TypeScript privacy shield, SearXNG local metasearch, and ChromaDB active document RAG."
+  repository: "https://github.com/mohitantil3399/Pikachu_Browser"
+  license: "GPL-3.0"
+  entrypoint: "app.py"
+
+# --- SYSTEM PREREQUISITES ---
+prerequisites:
+  python:
+    version: ">=3.10"
+    check_command: "python --version"
+  node:
+    version: ">=20.0.0"
+    check_command: "node --version"
+  docker:
+    version: ">=24.0.0"
+    check_command: "docker --version"
+  os_support:
+    - "Windows 10 / 11 (Primary)"
+    - "Linux (Ubuntu / Debian / Fedora)"
+    - "macOS (Apple Silicon / Intel)"
+
+# --- CONTAINER SERVICES ---
+services:
+  searxng:
+    container_name: "searxng"
+    image: "searxng/searxng:latest"
+    restart_policy: "unless-stopped"
+    network_mode: "bridge"
+    ports:
+      host_port: 8888
+      container_port: 8080
+      protocol: "tcp"
+      mapping: "8888:8080"
+      rationale: "Port 8888 bypasses Windows Hyper-V / WinNAT dynamic excluded port collisions on 8080/8081."
+    volumes:
+      - host_path: "./settings.yml"
+        container_path: "/etc/searxng/settings.yml"
+        mode: "ro"
+    healthcheck:
+      endpoint: "http://localhost:8888/search?q=test&format=json"
+      expected_status: 200
+      timeout_seconds: 10
+    commands:
+      run: "docker run -d -p 8888:8080 -v \"${PWD}\\settings.yml:/etc/searxng/settings.yml\" --name searxng searxng/searxng"
+      stop: "docker stop searxng"
+      start: "docker start searxng"
+      remove: "docker rm -f searxng"
+      logs: "docker logs searxng"
+
+# --- ENVIRONMENT & API CONFIGURATION ---
+environment:
+  template_file: ".env.example"
+  active_file: ".env"
+  default_variables:
+    SEARXNG_ENDPOINT: "http://localhost:8888/search"
+    PRIMARY_SEARCH_PROVIDER: "searxng"
+    BACKUP_SEARCH_PROVIDER: "tavily"
+    PRIMARY_LLM_PROVIDER: "groq"
+    LOCAL_EMBEDDING_MODEL: "all-MiniLM-L6-v2"
+    DEFAULT_CITY: "Sonipat"
+    DEFAULT_REGION: "Haryana"
+    DEFAULT_COUNTRY: "India"
+  api_credentials:
+    GROQ_API_KEY:
+      required: false
+      purpose: "Ultra-fast Llama-3 / Mixtral inference for AI Assistant"
+      signup_url: "https://console.groq.com/"
+    MISTRAL_API_KEY:
+      required: false
+      purpose: "Mistral Large / Codestral reasoning models"
+      signup_url: "https://console.mistral.ai/"
+    OPENROUTER_API_KEY:
+      required: false
+      purpose: "Aggregated LLM model access"
+      signup_url: "https://openrouter.ai/"
+    TAVILY_API_KEY:
+      required: false
+      purpose: "Automated search failover when SearXNG is unreachable"
+      signup_url: "https://tavily.com/"
+    WEATHER_API_KEY:
+      required: false
+      purpose: "Live weather intelligence feed"
+      signup_url: "https://openweathermap.org/"
+
+# --- TYPESCRIPT PRIVACY SHIELD ---
+privacy_shield:
+  source_file: "src/scripts/privacy_shield.ts"
+  config_file: "src/scripts/tsconfig.json"
+  build_script: "src/scripts/build.mjs"
+  bundle_file: "src/scripts/privacy_shield.bundle.js"
+  build_command: "node src/scripts/build.mjs"
+  capabilities:
+    - "Layer 1: Network Request Interceptor blocking 250+ trackers and ad networks"
+    - "Layer 2: TypeScript procedural scriptlet with JSON.parse adPlacements deep-pruning"
+    - "YouTube: Stream response rewriting for /youtubei/v1/player"
+    - "YouTube: 50ms watchdog auto-skipping video ads, muting audio, and firing ended events"
+    - "Universal: Cosmetic CSS hiding of all banner and sponsored layout components"
+    - "Shred on Close: Off-the-record profile with complete cookie and cache purge on exit"
+
+# --- AUTOMATED SETUP WORKFLOW STEPS ---
+pipeline:
+  step_1_virtual_environment:
+    name: "Initialize Virtual Environment"
+    windows: "python -m venv .venv; .\\.venv\\Scripts\\Activate.ps1"
+    unix: "python3 -m venv .venv && source .venv/bin/activate"
+
+  step_2_install_dependencies:
+    name: "Install Python Dependencies"
+    command: "pip install -r requirements.txt"
+
+  step_3_environment_setup:
+    name: "Prepare Environment File"
+    action: "copy_file"
+    source: ".env.example"
+    destination: ".env"
+    condition: "if_destination_missing"
+
+  step_4_compile_shield:
+    name: "Compile TypeScript Privacy Shield"
+    command: "node src/scripts/build.mjs"
+
+  step_5_start_searxng:
+    name: "Launch Local SearXNG Docker Container"
+    command_windows: "docker run -d -p 8888:8080 -v \"${PWD}\\settings.yml:/etc/searxng/settings.yml\" --name searxng searxng/searxng"
+    command_unix: "docker run -d -p 8888:8080 -v \"$(pwd)/settings.yml:/etc/searxng/settings.yml\" --name searxng searxng/searxng"
+
+  step_6_launch_browser:
+    name: "Run Pikachu Browser"
+    windows: ".\\.venv\\Scripts\\python.exe app.py"
+    unix: "./.venv/bin/python app.py"

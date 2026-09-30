@@ -87,7 +87,33 @@ cd Pikachu_Browser
 
 ---
 
-### Step 2: Set Up Python Virtual Environment
+### ⚡ Quick & Simple: 1-Click Setup (Recommended)
+
+All configuration, Docker containers, and build steps are declared in [`setup.yaml`](setup.yaml). Simply run:
+
+```powershell
+python setup.py
+```
+
+This single command will:
+1. Verify Python, Node.js, and Docker prerequisites.
+2. Install all required Python dependencies (`requirements.txt`).
+3. Create your `.env` configuration file from template.
+4. Compile the TypeScript Privacy Shield engine.
+5. Provision and start the local **SearXNG** Docker container on port `8888`.
+
+Then launch the browser:
+```powershell
+python app.py
+```
+
+---
+
+### 🛠️ Manual Step-by-Step Setup
+
+If you prefer to configure components manually:
+
+#### Step 1: Set Up Python Virtual Environment
 ```powershell
 # Create virtual environment
 python -m venv .venv
@@ -101,29 +127,33 @@ pip install -r requirements.txt
 
 ---
 
-### Step 3: Configure Environment Variables
-Copy `.env.example` to `.env` and fill in your API keys:
+#### Step 2: Configure Environment Variables
+Copy `.env.example` to `.env`:
 ```powershell
 copy .env.example .env
 ```
 
-Edit `.env`:
+Pikachu Browser works immediately for ad-free browsing using local defaults. To unlock the full agentic AI capabilities, configure your API keys in `.env`:
+
+| Variable | Provider / Purpose | Free Tier Link | Priority |
+| :--- | :--- | :--- | :--- |
+| `GROQ_API_KEY` | Ultra-fast Llama-3 inference for AI Assistant | [console.groq.com/keys](https://console.groq.com/keys) | **Recommended** |
+| `TAVILY_API_KEY` | Automatic cloud search backup if local SearXNG is off | [app.tavily.com](https://app.tavily.com/sign-in) | **Recommended** |
+| `MISTRAL_API_KEY` | Codestral & Mistral Large reasoning models | [console.mistral.ai](https://console.mistral.ai/api-keys/) | Optional |
+| `OPENROUTER_API_KEY` | Unified router access to 100+ open-source models | [openrouter.ai/keys](https://openrouter.ai/keys) | Optional |
+| `WEATHER_API_KEY` | Live Sonipat & regional weather intelligence | [home.openweathermap.org](https://home.openweathermap.org/api_keys) | Optional |
+| `SEARXNG_ENDPOINT` | Local SearXNG endpoint (`http://localhost:8888/search`) | Preconfigured locally | Pre-set |
+
 ```ini
-# LLM Providers (at least one required for AI chat)
-GROQ_API_KEY="your-groq-api-key"
-MISTRAL_API_KEY="your-mistral-api-key"
-OPENROUTER_API_KEY="your-openrouter-api-key"
-
-# Backup Search Provider
-TAVILY_API_KEY="your-tavily-api-key"
-
-# Local Metasearch Endpoint
+# --- Example .env Configuration ---
+GROQ_API_KEY="gsk_..."
+TAVILY_API_KEY="tvly-..."
 SEARXNG_ENDPOINT="http://localhost:8888/search"
 ```
 
 ---
 
-### Step 4: Launch SearXNG with Docker
+#### Step 3: Launch SearXNG with Docker
 Start the private SearXNG Docker container on host port **`8888`**:
 
 ```powershell
@@ -142,7 +172,7 @@ Invoke-WebRequest -Uri "http://localhost:8888/search?q=test&format=json"
 
 ---
 
-### Step 5: Build the TypeScript Privacy Shield (Optional)
+#### Step 4: Build the TypeScript Privacy Shield (Optional)
 The pre-compiled bundle is included in the repository. If you make modifications to [src/scripts/privacy_shield.ts](src/scripts/privacy_shield.ts), compile it via:
 
 ```powershell
@@ -151,7 +181,7 @@ node src/scripts/build.mjs
 
 ---
 
-### Step 6: Launch Pikachu Browser
+#### Step 5: Launch Pikachu Browser
 ```powershell
 .\.venv\Scripts\python.exe app.py
 ```
