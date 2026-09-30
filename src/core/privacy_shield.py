@@ -267,276 +267,39 @@ class NetworkAdBlockerInterceptor(QWebEngineUrlRequestInterceptor):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# LAYER 2 — COSMETIC FILTERING & PROCEDURAL SCRIPTLETS
+# ═══════════════════════════════════════════════════════════════════════════
+# LAYER 2 — TYPESCRIPT-ENGINEERED PRIVACY & AD-NEUTRALIZER SHIELD
 # ═══════════════════════════════════════════════════════════════════════════
 
-BRAVE_COSMETIC_AND_SCRIPTLET_JS = r"""
-(function() {
-    'use strict';
+SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
+BUNDLE_PATH = SCRIPTS_DIR / "privacy_shield.bundle.js"
+TS_PATH = SCRIPTS_DIR / "privacy_shield.ts"
+BUILD_SCRIPT = SCRIPTS_DIR / "build.mjs"
 
-    // ─── UNIVERSAL COSMETIC AD ELEMENT HIDER ──────────────────────────
-    const COSMETIC_CSS = `
-        /* Google Ads iframes and containers */
-        ins.adsbygoogle,
-        [id^="google_ads"],
-        [id^="div-gpt-ad"],
-        [class*="ad-container"],
-        [class*="ad-wrapper"],
-        [class*="ad-slot"],
-        [class*="ad-banner"],
-        [class*="ad-unit"],
-        [data-ad-slot],
-        [data-ad],
-        iframe[src*="doubleclick"],
-        iframe[src*="googlesyndication"],
-        iframe[src*="googleadservices"],
-        /* Taboola / Outbrain widgets */
-        .trc_related_container,
-        .OUTBRAIN,
-        [data-widget-type="taboola"],
-        [id^="taboola-"],
-        [class*="taboola"],
-        [class*="outbrain"],
-        /* Generic sponsored content markers */
-        [class*="sponsored"],
-        [class*="Sponsored"],
-        [data-testid*="sponsor"],
-        /* Cookie consent overlays from ad-tech */
-        [id*="sp_message_container"],
-        [class*="qc-cmp"],
-        /* YouTube Ad Selectors (In-Player, Sidebar, Masthead, Feed) */
-        ytd-ad-slot-renderer,
-        ytd-in-feed-ad-layout-renderer,
-        ytd-action-companion-ad-renderer,
-        ytd-promoted-sparkles-web-renderer,
-        ytd-display-ad-renderer,
-        ytd-promoted-video-renderer,
-        ytd-compact-promoted-video-renderer,
-        ytd-banner-promo-renderer,
-        ytd-statement-banner-renderer,
-        ytd-mealbar-promo-renderer,
-        .ytd-merch-shelf-renderer,
-        #masthead-ad,
-        #player-ads,
-        #panels .ytd-ads-engagement-panel-content-renderer,
-        .ytp-ad-module,
-        .ytp-ad-overlay-container,
-        .ytp-ad-overlay-slot,
-        .video-ads,
-        .ytp-ad-player-overlay,
-        .ytp-ad-player-overlay-layout,
-        .ytp-ad-player-overlay-flyout-cta,
-        .ytp-ad-text,
-        .ytp-ad-preview-text,
-        .ytp-ad-skip-button-modern,
-        tp-yt-paper-dialog:has(#dismiss-button),
-        ytd-enforcement-message-view-model,
-        yt-mealbar-promo-renderer {
-            display: none !important;
-            visibility: hidden !important;
-            height: 0 !important;
-            min-height: 0 !important;
-            max-height: 0 !important;
-            opacity: 0 !important;
-            overflow: hidden !important;
-            pointer-events: none !important;
-        }
-    `;
 
-    // Safe style injector that handles DocumentCreation timing gracefully
-    function injectCosmeticCSS() {
-        try {
-            if (document.getElementById('pikachu-cosmetic-shield')) return true;
-            const target = document.head || document.documentElement;
-            if (target) {
-                const styleEl = document.createElement('style');
-                styleEl.id = 'pikachu-cosmetic-shield';
-                styleEl.textContent = COSMETIC_CSS;
-                target.appendChild(styleEl);
-                return true;
-            }
-        } catch(e) {}
-        return false;
-    }
+def get_privacy_shield_script() -> str:
+    """
+    Returns the compiled JavaScript bundle compiled from src/scripts/privacy_shield.ts.
+    If the TypeScript source is newer than the bundle, recompiles via Node.js automatically.
+    """
+    try:
+        needs_build = not BUNDLE_PATH.exists()
+        if not needs_build and TS_PATH.exists():
+            needs_build = TS_PATH.stat().st_mtime > BUNDLE_PATH.stat().st_mtime
 
-    // Try immediately, fallback to DOM events and polling until ready
-    if (!injectCosmeticCSS()) {
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', injectCosmeticCSS);
-        }
-        const styleRetry = setInterval(function() {
-            if (injectCosmeticCSS()) clearInterval(styleRetry);
-        }, 50);
-    }
+        if needs_build and BUILD_SCRIPT.exists():
+            import subprocess
+            subprocess.run(["node", str(BUILD_SCRIPT)], check=True, capture_output=True)
 
-    // ─── YOUTUBE AD NEUTRALIZER SCRIPTLET ─────────────────────────────
-    const isYouTube = location.hostname.includes('youtube.com');
-    if (!isYouTube) return;
+        if BUNDLE_PATH.exists():
+            return BUNDLE_PATH.read_text(encoding="utf-8")
+    except Exception as e:
+        print(f"[PrivacyShield] Error loading/building TypeScript bundle: {e}")
 
-    // 1. Strip ad placements from ytInitialPlayerResponse dynamically
-    try {
-        let _ytResp = window.ytInitialPlayerResponse;
-        Object.defineProperty(window, 'ytInitialPlayerResponse', {
-            get: function() { return _ytResp; },
-            set: function(val) {
-                if (val && typeof val === 'object') {
-                    delete val.adPlacements;
-                    delete val.playerAds;
-                    delete val.adSlots;
-                }
-                _ytResp = val;
-            },
-            configurable: true
-        });
-        if (_ytResp && typeof _ytResp === 'object') {
-            delete _ytResp.adPlacements;
-            delete _ytResp.playerAds;
-            delete _ytResp.adSlots;
-        }
-    } catch(e) {}
-
-    // 2. Continuous High-Frequency YouTube Ad Skipper & Element Purger
-    function skipYouTubeAd() {
-        try {
-            const player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
-            const adShowing = player && (player.classList.contains('ad-showing') || player.classList.contains('ad-interrupting'));
-            const adOverlay = document.querySelector('.ytp-ad-player-overlay, .ytp-ad-text, .ytp-ad-preview-text, .ytp-ad-module');
-
-            if (adShowing || adOverlay) {
-                const video = document.querySelector('video.html5-main-video') || document.querySelector('video');
-                if (video) {
-                    video.muted = true;
-                    video.playbackRate = 16.0;
-                    if (isFinite(video.duration) && video.duration > 0) {
-                        video.currentTime = video.duration;
-                    } else {
-                        video.currentTime = 99999;
-                    }
-                }
-
-                // Instant click on any ad skip buttons
-                const skipSelectors = [
-                    '.ytp-ad-skip-button',
-                    '.ytp-ad-skip-button-modern',
-                    '.ytp-skip-ad-button',
-                    'button.ytp-ad-skip-button-modern',
-                    '.ytp-ad-skip-button-slot button',
-                    'button[class*="ytp-ad-skip-button"]',
-                    'button[class*="skip-button"]',
-                    '.ytp-ad-overlay-close-button',
-                    '.ytp-ad-overlay-close-container button'
-                ];
-                for (let i = 0; i < skipSelectors.length; i++) {
-                    const btns = document.querySelectorAll(skipSelectors[i]);
-                    for (let j = 0; j < btns.length; j++) {
-                        try { btns[j].click(); } catch(err) {}
-                    }
-                }
-            }
-
-            // Purge companion and sidebar ads (e.g. Sponsored cards)
-            const companionAds = document.querySelectorAll(
-                'ytd-ad-slot-renderer, ' +
-                'ytd-in-feed-ad-layout-renderer, ' +
-                'ytd-action-companion-ad-renderer, ' +
-                '#player-ads, ' +
-                '#masthead-ad, ' +
-                'ytd-banner-promo-renderer'
-            );
-            for (let i = 0; i < companionAds.length; i++) {
-                try { companionAds[i].remove(); } catch(err) {}
-            }
-
-            // Dismiss anti-adblock modals
-            const enforceDialogs = document.querySelectorAll(
-                'ytd-enforcement-message-view-model, ' +
-                'tp-yt-paper-dialog:has(#dismiss-button)'
-            );
-            for (let i = 0; i < enforceDialogs.length; i++) {
-                try {
-                    const dismissBtn = enforceDialogs[i].querySelector('#dismiss-button') ||
-                                       enforceDialogs[i].querySelector('button');
-                    if (dismissBtn) dismissBtn.click();
-                    enforceDialogs[i].remove();
-                } catch(err) {}
-            }
-        } catch(e) {}
-    }
-
-    // Run every 100ms for ultra-responsive ad skipping
-    setInterval(skipYouTubeAd, 100);
-
-    // 3. Attach MutationObserver safely once documentElement exists
-    function setupObserver() {
-        if (!document.documentElement) {
-            setTimeout(setupObserver, 50);
-            return;
-        }
-        const observer = new MutationObserver(function() {
-            injectCosmeticCSS();
-            skipYouTubeAd();
-        });
-        observer.observe(document.documentElement, {
-            childList: true,
-            subtree: true
-        });
-    }
-    setupObserver();
-
-    // 4. Intercept fetch & XHR to strip ads from YouTube API responses
-    try {
-        const originalFetch = window.fetch;
-        window.fetch = async function(...args) {
-            const url = (args[0] instanceof Request) ? args[0].url : String(args[0]);
-
-            // Black hole ad stats/tracking requests
-            if (url.includes('/get_midroll_') ||
-                url.includes('/api/stats/ads') ||
-                url.includes('/api/stats/atr') ||
-                url.includes('/pagead/') ||
-                url.includes('doubleclick.net') ||
-                url.includes('googleadservices.com')) {
-                return new Promise(() => {});
-            }
-
-            // Intercept player config to strip ad definitions before video starts
-            if (url.includes('/youtubei/v1/player')) {
-                try {
-                    const response = await originalFetch.apply(this, args);
-                    const clone = response.clone();
-                    const data = await clone.json();
-                    if (data.adPlacements) delete data.adPlacements;
-                    if (data.playerAds) delete data.playerAds;
-                    if (data.adSlots) delete data.adSlots;
-                    return new Response(JSON.stringify(data), {
-                        status: response.status,
-                        statusText: response.statusText,
-                        headers: response.headers
-                    });
-                } catch(err) {
-                    return originalFetch.apply(this, args);
-                }
-            }
-
-            return originalFetch.apply(this, args);
-        };
-
-        const origXHROpen = XMLHttpRequest.prototype.open;
-        XMLHttpRequest.prototype.open = function(method, url, ...rest) {
-            const urlStr = String(url);
-            if (urlStr.includes('/get_midroll_') ||
-                urlStr.includes('/api/stats/ads') ||
-                urlStr.includes('/api/stats/atr') ||
-                urlStr.includes('/pagead/') ||
-                urlStr.includes('doubleclick.net') ||
-                urlStr.includes('googleadservices.com')) {
-                return origXHROpen.call(this, method, 'about:blank', ...rest);
-            }
-            return origXHROpen.call(this, method, url, ...rest);
-        };
-    } catch(e) {}
-})();
-"""
+    # Fallback to direct read if bundle exists
+    if BUNDLE_PATH.exists():
+        return BUNDLE_PATH.read_text(encoding="utf-8")
+    return ""
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -547,7 +310,7 @@ def setup_privacy_shield(profile: QWebEngineProfile, parent=None):
     """
     Applies the full Brave-grade privacy shield to a QWebEngineProfile:
       1. Network-level ad/tracker blocker (QWebEngineUrlRequestInterceptor)
-      2. Cosmetic CSS + YouTube scriptlet injection (QWebEngineScript)
+      2. TypeScript-compiled Cosmetic CSS + YouTube scriptlet injection (QWebEngineScript)
       3. Engine-level privacy hardening (settings, UA, cookies, cache)
 
     Args:
@@ -562,14 +325,16 @@ def setup_privacy_shield(profile: QWebEngineProfile, parent=None):
     interceptor = NetworkAdBlockerInterceptor(parent)
     profile.setUrlRequestInterceptor(interceptor)
 
-    # ── 2. Inject Cosmetic + Scriptlet JS into every page ─────────────────
-    script = QWebEngineScript()
-    script.setName("PikachuPrivacyShield")
-    script.setSourceCode(BRAVE_COSMETIC_AND_SCRIPTLET_JS)
-    script.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentCreation)
-    script.setWorldId(QWebEngineScript.ScriptWorldId.MainWorld)
-    script.setRunsOnSubFrames(True)  # Also block ads in iframes
-    profile.scripts().insert(script)
+    # ── 2. Inject TypeScript-compiled scriptlet into every page ────────────
+    shield_code = get_privacy_shield_script()
+    if shield_code:
+        script = QWebEngineScript()
+        script.setName("PikachuPrivacyShield")
+        script.setSourceCode(shield_code)
+        script.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentCreation)
+        script.setWorldId(QWebEngineScript.ScriptWorldId.MainWorld)
+        script.setRunsOnSubFrames(True)  # Also block ads in iframes
+        profile.scripts().insert(script)
 
     # ── 3. Privacy-hardened engine settings ────────────────────────────────
     settings = profile.settings()

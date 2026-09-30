@@ -23,6 +23,15 @@ from src.workers.indexer_worker import IndexerWorker
 
 ASSETS_DIR = Path(__file__).resolve().parent / "assets" / "icons"
 
+
+class PrivateWebEnginePage(QWebEnginePage):
+    """Off-the-record page with filtered JS console message routing."""
+    def javaScriptConsoleMessage(self, level, message, lineNumber, sourceID):
+        if "ResizeObserver" in message or "generate_204" in message:
+            return
+        print(f"[JS] {message}", flush=True)
+
+
 class AgenticDocBrowser(QMainWindow):
     """
     Main Web & Research Browser featuring:
@@ -156,7 +165,7 @@ class AgenticDocBrowser(QMainWindow):
         self.browser_layout.setContentsMargins(0, 0, 0, 0)
 
         # Create page with the off-the-record privacy profile
-        self._private_page = QWebEnginePage(self.privacy_profile, self)
+        self._private_page = PrivateWebEnginePage(self.privacy_profile, self)
         self.web_view = QWebEngineView()
         self.web_view.setPage(self._private_page)
         self.web_view.setUrl(QUrl(DEFAULT_DOC_URL))
@@ -329,7 +338,10 @@ class AgenticDocBrowser(QMainWindow):
             store.deleteAllCookies()
             self.privacy_profile.clearHttpCache()
             self.privacy_profile.clearAllVisitedLinks()
-            self.web_view.setPage(None)
+            if hasattr(self, '_private_page') and self._private_page:
+                self.web_view.setPage(None)
+                self._private_page.deleteLater()
+                self._private_page = None
         except Exception:
             pass
         super().closeEvent(event)
