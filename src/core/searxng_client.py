@@ -40,9 +40,10 @@ class ResilientSearchClient:
     def check_searxng_health(self, timeout: float = 1.5) -> bool:
         """Quick health check to determine if local SearXNG Docker is accessible."""
         try:
+            base_url = self.searxng_endpoint.rsplit("/search", 1)[0] if "/search" in self.searxng_endpoint else self.searxng_endpoint
             with httpx.Client(timeout=timeout) as client:
-                resp = client.get(self.searxng_endpoint, params={"q": "ping", "format": "json"})
-                self.searxng_online = (resp.status_code == 200)
+                resp = client.get(base_url)
+                self.searxng_online = (resp.status_code in (200, 301, 302))
                 return self.searxng_online
         except Exception:
             self.searxng_online = False

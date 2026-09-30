@@ -225,10 +225,8 @@ class AgenticDocBrowser(QMainWindow):
         else:
             from urllib.parse import quote_plus
             q = quote_plus(raw)
-            if self.searxng_client.check_searxng_health(timeout=0.6):
-                self.navigate_to_url(f"http://localhost:8080/search?q={q}")
-            else:
-                self.navigate_to_url(f"https://duckduckgo.com/?q={q}")
+            # Route directly to SearXNG
+            self.navigate_to_url(f"http://localhost:8080/search?q={q}")
 
     def execute_web_search(self):
         query = self.search_box.text().strip()
@@ -237,12 +235,8 @@ class AgenticDocBrowser(QMainWindow):
         
         from urllib.parse import quote_plus
         q = quote_plus(query)
-
-        if self.searxng_client.check_searxng_health(timeout=0.6):
-            search_url = f"http://localhost:8080/search?q={q}"
-        else:
-            search_url = f"https://duckduckgo.com/?q={q}"
-        
+        # Directly generate search results from SearXNG
+        search_url = f"http://localhost:8080/search?q={q}"
         self.navigate_to_url(search_url)
 
     def on_url_changed(self, qurl):
