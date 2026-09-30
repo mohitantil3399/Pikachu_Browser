@@ -41,8 +41,8 @@ class FloatingChatDrawer(QFrame):
         self.llm_client = llm_client or LLMClient()
         self.get_current_url = get_current_url_cb
 
-        # Modes: "locality_news", "trading_summary", "weather"
-        self.current_mode = "locality_news"
+        # Modes: "page_context", "locality_news", "trading_summary", "weather"
+        self.current_mode = "page_context"
         self.active_animation = None
         self.active_query_worker = None
         self.digest_worker = None
@@ -79,7 +79,7 @@ class FloatingChatDrawer(QFrame):
         title_label = QLabel("PIKACHU AI")
         title_label.setObjectName("drawerTitle")
 
-        subtitle_label = QLabel("Specialized Intelligence Agent")
+        subtitle_label = QLabel("Research & Specialized Intelligence Agent")
         subtitle_label.setObjectName("drawerSubtitle")
         title_box.addWidget(title_label)
         title_box.addWidget(subtitle_label)
@@ -106,16 +106,21 @@ class FloatingChatDrawer(QFrame):
 
         layout.addLayout(header_layout)
 
-        # 2. Specialized Domain Selector Segment Bar
+        # 2. Mode Selector Segment Bar
         mode_frame = QFrame()
         mode_frame.setObjectName("modeSelectorFrame")
         mode_layout = QHBoxLayout(mode_frame)
         mode_layout.setContentsMargins(3, 3, 3, 3)
         mode_layout.setSpacing(4)
 
+        self.btn_page = QPushButton("📄 Page Context")
+        self.btn_page.setObjectName("modeBtn")
+        self.btn_page.setProperty("active", "true")
+        self.btn_page.clicked.connect(lambda: self.set_mode("page_context"))
+
         self.btn_locality = QPushButton("📍 Locality News")
         self.btn_locality.setObjectName("modeBtn")
-        self.btn_locality.setProperty("active", "true")
+        self.btn_locality.setProperty("active", "false")
         self.btn_locality.clicked.connect(lambda: self.set_mode("locality_news"))
 
         self.btn_trading = QPushButton("📈 Trading Summary")
@@ -128,6 +133,7 @@ class FloatingChatDrawer(QFrame):
         self.btn_weather.setProperty("active", "false")
         self.btn_weather.clicked.connect(lambda: self.set_mode("weather"))
 
+        mode_layout.addWidget(self.btn_page)
         mode_layout.addWidget(self.btn_locality)
         mode_layout.addWidget(self.btn_trading)
         mode_layout.addWidget(self.btn_weather)
@@ -135,7 +141,7 @@ class FloatingChatDrawer(QFrame):
 
         # 3. Status & Animated Hairline Progress Bar
         status_layout = QHBoxLayout()
-        self.status_label = QLabel("ChromaDB baseline active · Tavily 5-result verification ready")
+        self.status_label = QLabel("Ready · Active page indexed in ChromaDB")
         self.status_label.setObjectName("statusLabel")
         status_layout.addWidget(self.status_label)
         status_layout.addStretch()
@@ -159,6 +165,10 @@ class FloatingChatDrawer(QFrame):
         quick_layout = QHBoxLayout()
         quick_layout.setSpacing(6)
 
+        pill_page = QPushButton("📄 Summarize Page")
+        pill_page.setObjectName("quickPill")
+        pill_page.clicked.connect(lambda: self.quick_prompt("Provide a comprehensive summary and key takeaways of this page."))
+
         pill_news = QPushButton("📍 Sonipat Civic News")
         pill_news.setObjectName("quickPill")
         pill_news.clicked.connect(lambda: self.quick_prompt("What are the latest civic and regional news updates for Sonipat?"))
@@ -171,6 +181,7 @@ class FloatingChatDrawer(QFrame):
         pill_weather.setObjectName("quickPill")
         pill_weather.clicked.connect(lambda: self.quick_prompt("What is the current live weather and temperature forecast for Sonipat?"))
 
+        quick_layout.addWidget(pill_page)
         quick_layout.addWidget(pill_news)
         quick_layout.addWidget(pill_trading)
         quick_layout.addWidget(pill_weather)
@@ -183,7 +194,7 @@ class FloatingChatDrawer(QFrame):
 
         self.chat_input = QLineEdit()
         self.chat_input.setObjectName("chatInput")
-        self.chat_input.setPlaceholderText("Ask about regional news, civic developments in Sonipat...")
+        self.chat_input.setPlaceholderText("Ask questions or request summaries of the active page...")
         self.chat_input.returnPressed.connect(self.send_query)
 
         self.send_btn = QPushButton("Send")
@@ -225,15 +236,18 @@ class FloatingChatDrawer(QFrame):
 
     def set_mode(self, mode: str):
         self.current_mode = mode
+        self.btn_page.setProperty("active", "true" if mode == "page_context" else "false")
         self.btn_locality.setProperty("active", "true" if mode == "locality_news" else "false")
         self.btn_trading.setProperty("active", "true" if mode == "trading_summary" else "false")
         self.btn_weather.setProperty("active", "true" if mode == "weather" else "false")
 
-        for btn in [self.btn_locality, self.btn_trading, self.btn_weather]:
+        for btn in [self.btn_page, self.btn_locality, self.btn_trading, self.btn_weather]:
             btn.style().unpolish(btn)
             btn.style().polish(btn)
 
-        if mode == "locality_news":
+        if mode == "page_context":
+            self.chat_input.setPlaceholderText("Ask questions or request summaries of the active page...")
+        elif mode == "locality_news":
             self.chat_input.setPlaceholderText("Ask about regional news, civic developments in Sonipat...")
         elif mode == "trading_summary":
             self.chat_input.setPlaceholderText("Ask about this week's market recap, Nifty, Sensex, commodities...")
@@ -379,10 +393,14 @@ class FloatingChatDrawer(QFrame):
         self.stream_start_pos = cursor.position()
         self.pending_sources = []
 
-        # Spawn specialized worker strictly enforcing 3 domains + Tavily verification
+        # Get active document URL if available
+        active_url = self.get_current_url() if callable(self.get_current_url) else None
+
+        # Spawn specialized worker handling page context or specialized domains
         self.active_query_worker = SpecializedQueryWorker(
             query=query,
             active_tab=self.current_mode,
+            current_url=active_url,
             vector_store=self.vector_store,
             searxng_client=self.searxng_client,
             llm_client=self.llm_client
@@ -402,11 +420,11 @@ class FloatingChatDrawer(QFrame):
         self.chat_history.ensureCursorVisible()
 
     def _on_sources_received(self, sources: list):
-        """Stores verified Tavily top 5 sources (250 chars) for citation card rendering."""
+        """Stores verified sources for citation card rendering."""
         self.pending_sources = sources
 
     def _on_finished_received(self, full_text: str):
-        """Cleans streamed text buffer and replaces it with rendered Markdown and Tavily Verification Card."""
+        """Cleans streamed text buffer and replaces it with rendered Markdown and Source/Verification Card."""
         cursor = self.chat_history.textCursor()
         cursor.setPosition(self.stream_start_pos)
         cursor.movePosition(QTextCursor.End, QTextCursor.KeepAnchor)
@@ -415,32 +433,50 @@ class FloatingChatDrawer(QFrame):
         # Format full markdown
         formatted_md = markdown.markdown(full_text, extensions=['fenced_code', 'codehilite', 'tables'])
 
-        # Build Tavily Verification Card (Top 5 Results, 250 characters summary)
+        # Build Source or Tavily Verification Card
         verification_card_html = ""
         if self.pending_sources:
-            verification_card_html = (
-                "<div style='margin-top: 10px; margin-bottom: 4px; padding: 10px 12px; "
-                "background-color: #0d1117; border: 1px solid #28303f; border-radius: 6px;'>"
-                "<div style='display: flex; align-items: center; margin-bottom: 6px;'>"
-                "<span style='color: #d49b35; font-weight: 700; font-size: 11px;'>✓ Verified against Tavily</span> "
-                "<span style='color: #7d8590; font-size: 11px; margin-left: 6px;'>(Top 5 results · 250-character summary)</span>"
-                "</div>"
-            )
-            for i, item in enumerate(self.pending_sources[:5], 1):
-                title = item.get("title", "Source")
-                url = item.get("url", "#")
-                summary = item.get("summary", "")[:250]
-                verification_card_html += (
-                    f"<div style='margin-top: 6px; padding-top: 6px; border-top: 1px solid #1c212c;'>"
+            is_page_doc = any("Active Web Document" in s.get("title", "") for s in self.pending_sources)
+            if is_page_doc:
+                src_item = self.pending_sources[0]
+                url = src_item.get("url", "#")
+                summary = src_item.get("summary", "")
+                verification_card_html = (
+                    "<div style='margin-top: 10px; margin-bottom: 4px; padding: 10px 12px; "
+                    "background-color: #0d1117; border: 1px solid #28303f; border-radius: 6px;'>"
+                    "<div style='display: flex; align-items: center; margin-bottom: 4px;'>"
+                    "<span style='color: #58a6ff; font-weight: 700; font-size: 11px;'>📄 Active Document Source</span>"
+                    "</div>"
                     f"<div style='font-size: 11px;'>"
-                    f"<span style='color: #d49b35; font-weight: 600;'>[{i}]</span> "
-                    f"<a href='{url}' style='color: #58a6ff; text-decoration: none; font-weight: 600;'>{title}</a>"
+                    f"<a href='{url}' style='color: #58a6ff; text-decoration: none; font-weight: 600;'>{url}</a>"
                     f"</div>"
-                    f"<div style='color: #8b949e; font-size: 11px; margin-top: 3px; line-height: 1.4;'>{summary}</div>"
-                    f"<div style='color: #484f58; font-size: 10px; margin-top: 2px;'>{url}</div>"
-                    f"</div>"
+                    f"<div style='color: #8b949e; font-size: 11px; margin-top: 4px; line-height: 1.4;'>{summary}</div>"
+                    "</div>"
                 )
-            verification_card_html += "</div>"
+            else:
+                verification_card_html = (
+                    "<div style='margin-top: 10px; margin-bottom: 4px; padding: 10px 12px; "
+                    "background-color: #0d1117; border: 1px solid #28303f; border-radius: 6px;'>"
+                    "<div style='display: flex; align-items: center; margin-bottom: 6px;'>"
+                    "<span style='color: #d49b35; font-weight: 700; font-size: 11px;'>✓ Verified against Tavily</span> "
+                    "<span style='color: #7d8590; font-size: 11px; margin-left: 6px;'>(Top 5 results · 250-character summary)</span>"
+                    "</div>"
+                )
+                for i, item in enumerate(self.pending_sources[:5], 1):
+                    title = item.get("title", "Source")
+                    url = item.get("url", "#")
+                    summary = item.get("summary", "")[:250]
+                    verification_card_html += (
+                        f"<div style='margin-top: 6px; padding-top: 6px; border-top: 1px solid #1c212c;'>"
+                        f"<div style='font-size: 11px;'>"
+                        f"<span style='color: #d49b35; font-weight: 600;'>[{i}]</span> "
+                        f"<a href='{url}' style='color: #58a6ff; text-decoration: none; font-weight: 600;'>{title}</a>"
+                        f"</div>"
+                        f"<div style='color: #8b949e; font-size: 11px; margin-top: 3px; line-height: 1.4;'>{summary}</div>"
+                        f"<div style='color: #484f58; font-size: 10px; margin-top: 2px;'>{url}</div>"
+                        f"</div>"
+                    )
+                verification_card_html += "</div>"
 
         final_bubble_html = (
             f"<div style='background-color: #11141c; border: 1px solid #222836; border-radius: 6px; "
