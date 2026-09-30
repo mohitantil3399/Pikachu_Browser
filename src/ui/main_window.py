@@ -1,7 +1,9 @@
-from PySide6.QtCore import QUrl, QRect, Qt
+from pathlib import Path
+from PySide6.QtCore import QUrl, QRect, Qt, QTimer
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLineEdit, QPushButton, QToolBar
+    QLineEdit, QPushButton, QToolBar, QLabel
 )
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
@@ -13,15 +15,23 @@ from src.core.searxng_client import SearxngClient
 from src.core.llm_client import LLMClient
 from src.workers.indexer_worker import IndexerWorker
 
+ASSETS_DIR = Path(__file__).resolve().parent / "assets" / "icons"
+
 class AgenticDocBrowser(QMainWindow):
-    """Main Application Window with Integrated QWebEngineView and Floating Pikachu AI Drawer."""
+    """
+    Main Web & Research Browser featuring:
+    - Bespoke editorial dark aesthetic compliant with basictoadv standards.
+    - Anime.js-inspired fluid animated floating AI Assistant drawer.
+    - Dual search infrastructure: Local SearXNG engine with default Tavily Search backup.
+    - Real-time clickable citation links routing directly into the active browser engine.
+    """
     
     def __init__(self):
         super().__init__()
         self.setWindowTitle(APP_TITLE)
-        self.setGeometry(100, 100, 1360, 860)
+        self.setGeometry(100, 100, 1380, 880)
 
-        # Apply global stylesheet
+        # Apply bespoke stylesheet
         self.setStyleSheet(DARK_THEME_STYLESHEET)
 
         # Core Backend Services
@@ -33,11 +43,21 @@ class AgenticDocBrowser(QMainWindow):
         # Build UI Components
         self._init_ui()
 
+        # Check search engine health and update badges
+        QTimer.singleShot(500, self.update_search_engine_health)
+
         # Trigger Initial Page Ingestion
         self.trigger_indexing(DEFAULT_DOC_URL)
 
+    def _get_icon(self, name: str) -> QIcon:
+        icon_path = ASSETS_DIR / name
+        if icon_path.exists():
+            return QIcon(str(icon_path))
+        return QIcon()
+
     def _init_ui(self):
         self.central_widget = QWidget()
+        self.central_widget.setObjectName("centralWidget")
         self.setCentralWidget(self.central_widget)
         
         self.main_layout = QVBoxLayout(self.central_widget)
@@ -46,37 +66,65 @@ class AgenticDocBrowser(QMainWindow):
 
         # 1. Navigation & Address Toolbar
         self.toolbar = QToolBar("Navigation Toolbar")
+        self.toolbar.setObjectName("navToolbar")
+        self.toolbar.setMovable(False)
         self.addToolBar(self.toolbar)
 
-        self.btn_back = QPushButton("◀")
+        # Navigation Controls (Back, Forward, Reload, Home)
+        self.btn_back = QPushButton()
         self.btn_back.setObjectName("navBtn")
+        self.btn_back.setIcon(self._get_icon("arrow-left.svg"))
+        self.btn_back.setToolTip("Back (Alt+Left)")
         self.btn_back.clicked.connect(self.navigate_back)
 
-        self.btn_forward = QPushButton("▶")
+        self.btn_forward = QPushButton()
         self.btn_forward.setObjectName("navBtn")
+        self.btn_forward.setIcon(self._get_icon("arrow-right.svg"))
+        self.btn_forward.setToolTip("Forward (Alt+Right)")
         self.btn_forward.clicked.connect(self.navigate_forward)
 
-        self.btn_reload = QPushButton("🔄")
+        self.btn_reload = QPushButton()
         self.btn_reload.setObjectName("navBtn")
+        self.btn_reload.setIcon(self._get_icon("rotate-cw.svg"))
+        self.btn_reload.setToolTip("Reload Page (Ctrl+R)")
         self.btn_reload.clicked.connect(self.reload_page)
 
+        self.btn_home = QPushButton()
+        self.btn_home.setObjectName("navBtn")
+        self.btn_home.setIcon(self._get_icon("home.svg"))
+        self.btn_home.setToolTip("Documentation Home")
+        self.btn_home.clicked.connect(self.navigate_home)
+
+        # URL Bar
         self.url_bar = QLineEdit(DEFAULT_DOC_URL)
         self.url_bar.setObjectName("urlBar")
         self.url_bar.returnPressed.connect(self.load_url)
 
-        self.btn_searxng_quick = QPushButton("🔍 SearXNG")
-        self.btn_searxng_quick.setObjectName("navBtn")
-        self.btn_searxng_quick.clicked.connect(self.open_searxng_home)
+        # Search Engine Quick Action
+        self.btn_search_quick = QPushButton("Web Search")
+        self.btn_search_quick.setObjectName("searchQuickBtn")
+        self.btn_search_quick.setIcon(self._get_icon("search.svg"))
+        self.btn_search_quick.setToolTip("Open SearXNG / Web Search")
+        self.btn_search_quick.clicked.connect(self.open_search_engine)
 
-        self.btn_toggle_drawer = QPushButton("⚡ Pikachu AI Assistant")
+        # Live Health Badge (SearXNG vs Tavily Backup)
+        self.search_health_badge = QLabel("SearXNG · Tavily Ready")
+        self.search_health_badge.setObjectName("searchHealthBadge")
+
+        # Pikachu Assistant Drawer Toggle
+        self.btn_toggle_drawer = QPushButton("Pikachu AI Assistant")
         self.btn_toggle_drawer.setObjectName("pikachuToggleBtn")
+        self.btn_toggle_drawer.setIcon(self._get_icon("agent.svg"))
         self.btn_toggle_drawer.clicked.connect(self.toggle_drawer)
 
+        # Assemble Toolbar
         self.toolbar.addWidget(self.btn_back)
         self.toolbar.addWidget(self.btn_forward)
         self.toolbar.addWidget(self.btn_reload)
+        self.toolbar.addWidget(self.btn_home)
         self.toolbar.addWidget(self.url_bar)
-        self.toolbar.addWidget(self.btn_searxng_quick)
+        self.toolbar.addWidget(self.btn_search_quick)
+        self.toolbar.addWidget(self.search_health_badge)
         self.toolbar.addWidget(self.btn_toggle_drawer)
 
         # 2. Browser View Frame
@@ -91,7 +139,7 @@ class AgenticDocBrowser(QMainWindow):
 
         self.main_layout.addWidget(self.browser_frame, stretch=1)
 
-        # 3. Floating AI Drawer Widget
+        # 3. Floating AI Drawer Widget (Animated Overlay)
         self.drawer = FloatingChatDrawer(
             parent=self.browser_frame,
             vector_store=self.vector_store,
@@ -102,35 +150,49 @@ class AgenticDocBrowser(QMainWindow):
         self.drawer_visible = False
         self.drawer.hide()
         self.drawer.close_requested.connect(self.hide_drawer)
+        self.drawer.url_navigation_requested.connect(self.navigate_to_url)
 
     def get_current_url(self) -> str:
         return self.url_bar.text()
 
+    def update_search_engine_health(self):
+        """Checks if local SearXNG is up; if not, indicates Tavily backup is active."""
+        is_searxng = self.searxng_client.check_searxng_health(timeout=1.0)
+        if is_searxng:
+            self.search_health_badge.setText("SearXNG Active")
+            self.search_health_badge.setProperty("status", "searxng")
+        else:
+            self.search_health_badge.setText("Tavily Backup Active")
+            self.search_health_badge.setProperty("status", "tavily")
+
+        self.search_health_badge.style().unpolish(self.search_health_badge)
+        self.search_health_badge.style().polish(self.search_health_badge)
+        self.drawer.update_search_engine_badge()
+
     def resizeEvent(self, event):
         super().resizeEvent(event)
         # Position floating drawer at bottom right corner overlaying browser frame
-        w, h = 460, 480
+        w, h = 480, 520
         margin = 20
-        x = self.browser_frame.width() - w - margin
-        y = self.browser_frame.height() - h - margin
+        x = max(20, self.browser_frame.width() - w - margin)
+        y = max(20, self.browser_frame.height() - h - margin)
         self.drawer_target_rect = QRect(x, y, w, h)
         if self.drawer_visible:
             self.drawer.setGeometry(self.drawer_target_rect)
             self.drawer.raise_()
 
     def hide_drawer(self):
-        self.drawer.hide()
-        self.drawer_visible = False
+        if self.drawer_visible:
+            self.drawer.hide_animated()
+            self.drawer_visible = False
 
     def show_drawer(self):
-        w, h = 460, 480
+        w, h = 480, 520
         margin = 20
-        x = self.browser_frame.width() - w - margin
-        y = self.browser_frame.height() - h - margin
+        x = max(20, self.browser_frame.width() - w - margin)
+        y = max(20, self.browser_frame.height() - h - margin)
         self.drawer_target_rect = QRect(x, y, w, h)
-        self.drawer.setGeometry(self.drawer_target_rect)
-        self.drawer.show()
-        self.drawer.raise_()
+        self.drawer.show_animated(self.drawer_target_rect)
         self.drawer_visible = True
 
     def toggle_drawer(self):
@@ -148,16 +210,29 @@ class AgenticDocBrowser(QMainWindow):
     def reload_page(self):
         self.web_view.reload()
 
-    def open_searxng_home(self):
-        searxng_home = "http://localhost:8080"
-        self.url_bar.setText(searxng_home)
-        self.web_view.setUrl(QUrl(searxng_home))
+    def navigate_home(self):
+        self.navigate_to_url(DEFAULT_DOC_URL)
 
-    def load_url(self):
-        target = self.url_bar.text().strip()
+    def navigate_to_url(self, target_url: str):
+        target = target_url.strip()
         if not target.startswith(("http://", "https://")):
             target = "https://" + target
+        self.url_bar.setText(target)
         self.web_view.setUrl(QUrl(target))
+
+    def open_search_engine(self):
+        # If SearXNG is online, open local homepage, otherwise search with Tavily
+        if self.searxng_client.searxng_online:
+            searxng_home = "http://localhost:8080"
+            self.navigate_to_url(searxng_home)
+        else:
+            # Switch Pikachu to Deep Research mode and open drawer
+            self.drawer.set_mode("searxng")
+            self.show_drawer()
+            self.drawer.set_status("SearXNG offline · Tavily Search Backup Ready")
+
+    def load_url(self):
+        self.navigate_to_url(self.url_bar.text())
 
     def on_url_changed(self, qurl):
         url = qurl.toString()

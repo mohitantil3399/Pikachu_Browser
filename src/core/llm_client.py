@@ -84,7 +84,7 @@ class ResilientLLMClient:
                     )
                     content = resp.choices[0].message.content
                     if content and content.strip():
-                        return f"{content.strip()}\n\n<small style='color:#a6adc8;'>⚡ <i>Powered by Groq ({model_id} - {m['context'] // 1024}K context)</i></small>"
+                        return f"{content.strip()}\n\n<span style='color:#7d8590; font-size:11px;'>Engine: Groq ({model_id} · {m['context'] // 1024}K context)</span>"
                 except Exception as e:
                     err_msg = str(e).lower()
                     if "organization_restricted" in err_msg or "invalid_api_key" in err_msg or "deactivated" in err_msg:
@@ -126,7 +126,7 @@ class ResilientLLMClient:
                         data = resp.json()
                         content = data["choices"][0]["message"]["content"]
                         if content and content.strip():
-                            return f"{content.strip()}\n\n<small style='color:#a6adc8;'>⚡ <i>Powered by Mistral AI ({model_id} - {m['context'] // 1024}K context)</i></small>"
+                            return f"{content.strip()}\n\n<span style='color:#7d8590; font-size:11px;'>Engine: Mistral AI ({model_id} · {m['context'] // 1024}K context)</span>"
                     elif resp.status_code in (401, 403):
                         print(f"[LLMClient] Mistral API Key unauthorized/invalid (HTTP {resp.status_code}). Circuit breaker active: disabling Mistral.")
                         self.mistral_disabled = True
@@ -165,7 +165,7 @@ class ResilientLLMClient:
 
             if content and content.strip() and not content.strip().startswith("User Safety:"):
                 chosen_model = getattr(resp, "model", self.openrouter_free_model)
-                return f"{content.strip()}\n\n<small style='color:#a6adc8;'>⚡ <i>Powered by OpenRouter ({chosen_model})</i></small>"
+                return f"{content.strip()}\n\n<span style='color:#7d8590; font-size:11px;'>Engine: OpenRouter ({chosen_model})</span>"
             else:
                 print(f"[LLMClient] Free router returned safety/empty message, falling back to dynamic model discovery...")
         except Exception as e:
@@ -222,8 +222,8 @@ class ResilientLLMClient:
                                     msg = res_data.get("choices", [{}])[0].get("message", {})
                                     content = msg.get("content") or msg.get("reasoning")
                                     if content and content.strip() and not content.strip().startswith("User Safety:"):
-                                        ctx_str = f" - {ctx_len // 1024}K context" if ctx_len else ""
-                                        return f"{content.strip()}\n\n<small style='color:#a6adc8;'>⚡ <i>Powered by OpenRouter ({model_id}{ctx_str})</i></small>"
+                                        ctx_str = f" · {ctx_len // 1024}K context" if ctx_len else ""
+                                        return f"{content.strip()}\n\n<span style='color:#7d8590; font-size:11px;'>Engine: OpenRouter ({model_id}{ctx_str})</span>"
                                 elif resp.status_code == 429:
                                     print(f"[LLMClient] Model {model_id} busy (429), trying next dynamically discovered model...")
                         except Exception as req_err:
@@ -277,11 +277,12 @@ class ResilientLLMClient:
         )
         return self.query(system_prompt, user_query)
 
-    def answer_searxng_query(self, user_query: str, web_context: str) -> str:
+    def answer_searxng_query(self, user_query: str, web_context: str, search_provider: str = "SearXNG") -> str:
         bounded_web = web_context[:8000] if len(web_context) > 8000 else web_context
         system_prompt = (
             "You are Pikachu AI, an agentic deep web research assistant.\n"
-            "Summarize and answer the user's query comprehensively using the live multi-engine web search results provided below.\n"
+            f"The user query was researched using live multi-engine web search via {search_provider}.\n"
+            "Summarize and answer the user's query comprehensively using the web search excerpts provided below.\n"
             "Cite web sources with numbers [1], [2] referencing URLs in the excerpts, and format cleanly in Markdown.\n\n"
             f"Web Search Results:\n{bounded_web}"
         )

@@ -1,202 +1,337 @@
 # src/ui/styles.py
+"""
+Bespoke Design System for Pikachu AI Agentic Browser.
+Strictly complies with basictoadv.md standards:
+- Atmospheric dark slate / obsidian foundation (no generic AI purple or harsh neon).
+- Pikachu signature warm golden amber (#d49b35) accent with editorial restraint.
+- Crisp 1px geometric borders without dirty drop shadows.
+- Refined typography hierarchy with balanced tracking and padding.
+"""
 
 DARK_THEME_STYLESHEET = """
-QMainWindow, QWidget {
-    background-color: #11111b;
-    color: #cdd6f4;
-    font-family: 'Segoe UI', 'Inter', -apple-system, sans-serif;
+/* --- GLOBAL CANVAS & BASE SURFACES --- */
+QMainWindow, QWidget#centralWidget {
+    background-color: #0c0d12;
+    color: #e6edf3;
+    font-family: 'Segoe UI', 'Inter', -apple-system, system-ui, sans-serif;
     font-size: 13px;
 }
 
-/* --- TOOLBAR & NAVIGATION BAR --- */
-QToolBar {
-    background-color: #181825;
-    border-bottom: 1px solid #313244;
+/* --- BROWSER NAVIGATION TOOLBAR --- */
+QToolBar#navToolbar {
+    background-color: #12151c;
+    border-bottom: 1px solid #222733;
     spacing: 8px;
-    padding: 6px 12px;
-}
-
-QLineEdit#urlBar {
-    background-color: #1e1e2e;
-    border: 1px solid #45475a;
-    border-radius: 8px;
     padding: 7px 14px;
-    color: #f5e0dc;
-    font-size: 13px;
-    selection-background-color: #89b4fa;
 }
 
-QLineEdit#urlBar:focus {
-    border: 1px solid #89b4fa;
-    background-color: #181825;
-}
-
+/* Navigation Buttons (Back, Forward, Reload, Home) */
 QPushButton#navBtn {
-    background-color: #313244;
-    border: 1px solid #45475a;
-    border-radius: 6px;
-    color: #cdd6f4;
-    font-weight: bold;
-    padding: 6px 12px;
+    background-color: #181c25;
+    border: 1px solid #282f3d;
+    border-radius: 7px;
+    color: #c9d1d9;
+    font-weight: 500;
+    min-width: 32px;
+    max-width: 32px;
+    min-height: 32px;
+    max-height: 32px;
+    padding: 0px;
 }
 
 QPushButton#navBtn:hover {
-    background-color: #45475a;
+    background-color: #222836;
+    border: 1px solid #3b465b;
     color: #ffffff;
 }
 
-QPushButton#pikachuToggleBtn {
-    background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #f9e2af, stop:1 #fab387);
-    color: #11111b;
-    border: none;
+QPushButton#navBtn:pressed {
+    background-color: #141720;
+    border: 1px solid #222836;
+}
+
+/* URL & Address Bar */
+QLineEdit#urlBar {
+    background-color: #161922;
+    border: 1px solid #282f3d;
     border-radius: 8px;
-    font-weight: bold;
+    padding: 7px 14px;
+    color: #f0f6fc;
+    font-family: 'Segoe UI', 'Inter', monospace;
+    font-size: 13px;
+    selection-background-color: #d49b35;
+    selection-color: #0c0d12;
+}
+
+QLineEdit#urlBar:focus {
+    border: 1px solid #3b82f6;
+    background-color: #191d27;
+}
+
+/* Search Engine Status & Mode Quick Action */
+QPushButton#searchQuickBtn {
+    background-color: #181c25;
+    border: 1px solid #282f3d;
+    border-radius: 7px;
+    color: #c9d1d9;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 14px;
+}
+
+QPushButton#searchQuickBtn:hover {
+    background-color: #222836;
+    border: 1px solid #3b465b;
+    color: #ffffff;
+}
+
+/* Search Engine Live Health Pill */
+QLabel#searchHealthBadge {
+    background-color: #161b24;
+    border: 1px solid #28303f;
+    border-radius: 6px;
+    color: #8b949e;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 5px 10px;
+}
+
+QLabel#searchHealthBadge[status="searxng"] {
+    color: #10b981;
+    border: 1px solid #1f3b31;
+    background-color: #111e19;
+}
+
+QLabel#searchHealthBadge[status="tavily"] {
+    color: #e5aa38;
+    border: 1px solid #3d321d;
+    background-color: #1f1b13;
+}
+
+/* Pikachu AI Assistant Toggle Button */
+QPushButton#pikachuToggleBtn {
+    background-color: #d49b35;
+    color: #0c0d12;
+    border: 1px solid #e5ad45;
+    border-radius: 8px;
+    font-weight: 700;
     font-size: 13px;
     padding: 7px 16px;
+    letter-spacing: 0.3px;
 }
 
 QPushButton#pikachuToggleBtn:hover {
-    background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #f5e0dc, stop:1 #f9e2af);
+    background-color: #e0a73e;
+    border: 1px solid #f0bc55;
+}
+
+QPushButton#pikachuToggleBtn:pressed {
+    background-color: #bf8928;
 }
 
 /* --- FLOATING PIKACHU AI DRAWER --- */
 QFrame#pikachuDrawer {
-    background-color: rgba(24, 24, 37, 0.95);
-    border: 1px solid #45475a;
-    border-radius: 14px;
-    color: #cdd6f4;
+    background-color: #13161f;
+    border: 1px solid #282e3c;
+    border-radius: 12px;
+    color: #e6edf3;
+}
+
+/* Drawer Header Elements */
+QLabel#drawerTitle {
+    color: #f0f6fc;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.4px;
+}
+
+QLabel#drawerSubtitle {
+    color: #8b949e;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+QLabel#drawerEngineBadge {
+    background-color: #191d27;
+    border: 1px solid #2b3343;
+    border-radius: 6px;
+    color: #d49b35;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 8px;
+    letter-spacing: 0.3px;
 }
 
 QPushButton#drawerCloseBtn {
     background-color: transparent;
-    border: none;
+    border: 1px solid transparent;
     border-radius: 6px;
-    color: #a6adc8;
+    color: #8b949e;
     font-size: 13px;
     font-weight: bold;
-    min-width: 26px;
-    max-width: 26px;
-    min-height: 26px;
-    max-height: 26px;
+    min-width: 28px;
+    max-width: 28px;
+    min-height: 28px;
+    max-height: 28px;
     padding: 0px;
 }
 
 QPushButton#drawerCloseBtn:hover {
-    background-color: #f38ba8;
-    color: #11111b;
+    background-color: #222734;
+    border: 1px solid #333a4d;
+    color: #ffffff;
 }
 
-/* Mode Selector Tab Buttons */
+/* Mode Selector Segment Tabs */
+QFrame#modeSelectorFrame {
+    background-color: #10121a;
+    border: 1px solid #222734;
+    border-radius: 8px;
+    padding: 3px;
+}
+
 QPushButton#modeBtn {
-    background-color: #1e1e2e;
-    border: 1px solid #313244;
+    background-color: transparent;
+    border: 1px solid transparent;
     border-radius: 6px;
-    color: #a6adc8;
+    color: #8b949e;
     font-size: 11px;
-    font-weight: bold;
-    padding: 5px 10px;
+    font-weight: 600;
+    padding: 6px 10px;
 }
 
 QPushButton#modeBtn:hover {
-    background-color: #313244;
-    color: #cdd6f4;
+    background-color: #191d27;
+    color: #c9d1d9;
 }
 
 QPushButton#modeBtn[active="true"] {
-    background-color: #89b4fa;
-    border: 1px solid #89b4fa;
-    color: #11111b;
+    background-color: #242a38;
+    border: 1px solid #384357;
+    color: #f0f6fc;
+    font-weight: 700;
 }
 
-/* Status & Progress Bar */
-QLabel#statusLabel {
-    color: #a6adc8;
+/* Interactive Quick Action Pills */
+QPushButton#quickPill {
+    background-color: #161a23;
+    border: 1px solid #262c3b;
+    border-radius: 12px;
+    color: #8b949e;
     font-size: 11px;
+    font-weight: 500;
+    padding: 4px 11px;
+}
+
+QPushButton#quickPill:hover {
+    background-color: #202633;
+    border: 1px solid #384357;
+    color: #d49b35;
+}
+
+/* Status & Animated Hairline Progress Bar */
+QLabel#statusLabel {
+    color: #8b949e;
+    font-size: 11px;
+    font-weight: 500;
 }
 
 QProgressBar#indexingBar {
-    border: 1px solid #313244;
-    border-radius: 4px;
+    border: none;
+    border-radius: 2px;
     text-align: center;
-    color: #ffffff;
-    font-size: 10px;
-    background-color: #1e1e2e;
-    max-height: 8px;
+    background-color: #181c25;
+    max-height: 4px;
+    min-height: 4px;
 }
 
 QProgressBar#indexingBar::chunk {
-    background-color: #a6e3a1;
-    border-radius: 3px;
+    background-color: #d49b35;
+    border-radius: 2px;
 }
 
-/* Chat History Display */
-QTextEdit#chatHistory {
-    background-color: #181825;
-    border: 1px solid #313244;
+/* Chat History Display Area */
+QTextBrowser#chatHistory, QTextEdit#chatHistory {
+    background-color: #0e1017;
+    border: 1px solid #202633;
     border-radius: 8px;
-    color: #cdd6f4;
-    padding: 8px;
+    color: #e6edf3;
+    padding: 12px;
     font-size: 13px;
-    line-height: 1.4;
+    line-height: 1.5;
 }
 
 /* Chat Input Field */
 QLineEdit#chatInput {
-    background-color: #1e1e2e;
-    border: 1px solid #45475a;
+    background-color: #161922;
+    border: 1px solid #282f3d;
     border-radius: 8px;
-    padding: 8px 12px;
+    padding: 9px 14px;
     color: #ffffff;
     font-size: 13px;
 }
 
 QLineEdit#chatInput:focus {
-    border: 1px solid #89b4fa;
+    border: 1px solid #d49b35;
+    background-color: #1a1e28;
 }
 
 /* Send & Action Buttons */
 QPushButton#sendBtn {
-    background-color: #89b4fa;
-    color: #11111b;
+    background-color: #d49b35;
+    color: #0c0d12;
+    border: 1px solid #e5ad45;
     border-radius: 8px;
-    font-weight: bold;
+    font-weight: 700;
+    font-size: 12px;
     padding: 8px 16px;
+    min-width: 60px;
 }
 
 QPushButton#sendBtn:hover {
-    background-color: #b4befe;
+    background-color: #e0a73e;
+    border: 1px solid #f0bc55;
 }
 
-QPushButton#exportBtn {
-    background-color: #313244;
-    color: #f38ba8;
-    border: 1px solid #f38ba8;
+QPushButton#sendBtn:pressed {
+    background-color: #bf8928;
+}
+
+QPushButton#actionSecondaryBtn {
+    background-color: #161a23;
+    border: 1px solid #272d3b;
     border-radius: 6px;
-    font-weight: bold;
+    color: #8b949e;
     font-size: 11px;
-    padding: 4px 10px;
+    font-weight: 600;
+    padding: 5px 11px;
 }
 
-QPushButton#exportBtn:hover {
-    background-color: #f38ba8;
-    color: #11111b;
+QPushButton#actionSecondaryBtn:hover {
+    background-color: #212634;
+    border: 1px solid #363e52;
+    color: #e6edf3;
 }
 
-/* Scrollbars */
+/* Clean Refined Scrollbars */
 QScrollBar:vertical {
-    background: #181825;
-    width: 8px;
+    background: #0e1017;
+    width: 6px;
     margin: 0px;
-    border-radius: 4px;
+    border-radius: 3px;
 }
 
 QScrollBar::handle:vertical {
-    background: #45475a;
-    min-height: 20px;
-    border-radius: 4px;
+    background: #2b3242;
+    min-height: 24px;
+    border-radius: 3px;
 }
 
 QScrollBar::handle:vertical:hover {
-    background: #585b70;
+    background: #3e485e;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
 }
 """

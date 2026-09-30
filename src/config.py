@@ -10,6 +10,10 @@ load_dotenv(ROOT_DIR / ".env")
 APP_TITLE = "Pikachu AI - Agentic Web & Research Browser"
 DEFAULT_DOC_URL = "https://fastapi.tiangolo.com/tutorial/first-steps/"
 SEARXNG_ENDPOINT = os.getenv("SEARXNG_ENDPOINT", "http://localhost:8080/search")
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
+TAVILY_SEARCH_ENDPOINT = os.getenv("TAVILY_SEARCH_ENDPOINT", "https://api.tavily.com/search")
+PRIMARY_SEARCH_PROVIDER = os.getenv("PRIMARY_SEARCH_PROVIDER", "searxng").lower()
+BACKUP_SEARCH_PROVIDER = "tavily"
 
 # --- LLM PROVIDER ENDPOINTS & KEYS ---
 GROQ_API_KEY = os.getenv("GROQ_API_KEY") or os.getenv("Groq_KEY", "")
