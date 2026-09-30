@@ -1,11 +1,16 @@
+import os
 from pathlib import Path
-from PySide6.QtCore import QUrl, QRect, Qt, QTimer
+from PySide6.QtCore import QUrl, QRect, Qt, QTimer, QStandardPaths
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLineEdit, QPushButton, QToolBar, QLabel
+    QLineEdit, QPushButton, QToolBar, QLabel, QFileDialog
 )
 from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtWebEngineCore import (
+    QWebEngineProfile, QWebEnginePage, QWebEngineSettings,
+    QWebEngineDownloadRequest
+)
 
 from src.config import APP_TITLE, DEFAULT_DOC_URL, SEARXNG_ENDPOINT
 from src.ui.styles import DARK_THEME_STYLESHEET
@@ -13,6 +18,7 @@ from src.ui.chat_drawer import FloatingChatDrawer
 from src.core.vector_store import VectorStoreManager
 from src.core.searxng_client import SearxngClient
 from src.core.llm_client import LLMClient
+from src.core.privacy_shield import setup_privacy_shield
 from src.workers.indexer_worker import IndexerWorker
 
 ASSETS_DIR = Path(__file__).resolve().parent / "assets" / "icons"
@@ -33,6 +39,28 @@ class AgenticDocBrowser(QMainWindow):
 
         # Apply bespoke stylesheet
         self.setStyleSheet(DARK_THEME_STYLESHEET)
+
+        # ── Privacy-First Off-the-Record Session ──────────────────────
+        # No storageName = off-the-record (memory-only, nothing persists).
+        # Equivalent to Brave's "Shred on Close" — but always active.
+        self.privacy_profile = QWebEngineProfile(self)
+        self.privacy_profile.setPersistentCookiesPolicy(
+            QWebEngineProfile.PersistentCookiesPolicy.NoPersistentCookies
+        )
+        self.privacy_profile.setHttpCacheType(
+            QWebEngineProfile.HttpCacheType.NoCache
+        )
+
+        # Wire Brave-grade privacy shield (ad blocker + scriptlets + headers)
+        # Stored as self ref to prevent garbage collection
+        self._privacy_interceptor = setup_privacy_shield(
+            self.privacy_profile, parent=self
+        )
+
+        # Connect native download handler (PDFs, images, apps, etc.)
+        self.privacy_profile.downloadRequested.connect(
+            self._handle_download_requested
+        )
 
         # Core Backend Services
         self.vector_store = VectorStoreManager()
@@ -127,7 +155,10 @@ class AgenticDocBrowser(QMainWindow):
         self.browser_layout = QVBoxLayout(self.browser_frame)
         self.browser_layout.setContentsMargins(0, 0, 0, 0)
 
+        # Create page with the off-the-record privacy profile
+        self._private_page = QWebEnginePage(self.privacy_profile, self)
         self.web_view = QWebEngineView()
+        self.web_view.setPage(self._private_page)
         self.web_view.setUrl(QUrl(DEFAULT_DOC_URL))
         self.web_view.urlChanged.connect(self.on_url_changed)
         self.browser_layout.addWidget(self.web_view)
@@ -201,7 +232,7 @@ class AgenticDocBrowser(QMainWindow):
 
     def navigate_to_url(self, target_url: str):
         target = target_url.strip()
-        if not target.startswith(("http://", "https://")):
+        if not target.startswith(("http://", "https://", "file://")):
             target = "https://" + target
         self.url_bar.setText(target)
         self.web_view.setUrl(QUrl(target))
@@ -226,7 +257,7 @@ class AgenticDocBrowser(QMainWindow):
             from urllib.parse import quote_plus
             q = quote_plus(raw)
             # Route directly to SearXNG
-            self.navigate_to_url(f"http://localhost:8080/search?q={q}")
+            self.navigate_to_url(f"{SEARXNG_ENDPOINT}?q={q}")
 
     def execute_web_search(self):
         query = self.search_box.text().strip()
@@ -236,7 +267,7 @@ class AgenticDocBrowser(QMainWindow):
         from urllib.parse import quote_plus
         q = quote_plus(query)
         # Directly generate search results from SearXNG
-        search_url = f"http://localhost:8080/search?q={q}"
+        search_url = f"{SEARXNG_ENDPOINT}?q={q}"
         self.navigate_to_url(search_url)
 
     def on_url_changed(self, qurl):
@@ -246,7 +277,7 @@ class AgenticDocBrowser(QMainWindow):
 
     def trigger_indexing(self, url: str):
         # Don't index local landing page or SearXNG homepage
-        if "localhost:8080" in url:
+        if "localhost:8888" in url or "localhost:8080" in url:
             self.drawer.set_status("SearXNG Web Search Engine active.")
             return
         if url.startswith("file://") and ("home.html" in url or "assets" in url):
@@ -263,3 +294,42 @@ class AgenticDocBrowser(QMainWindow):
         if hasattr(self.drawer, "on_indexing_complete"):
             self.indexer_worker.completed_signal.connect(self.drawer.on_indexing_complete)
         self.indexer_worker.start()
+
+    # ── Native File Download Handler ──────────────────────────────────
+    def _handle_download_requested(self, download: QWebEngineDownloadRequest):
+        """
+        Handles file downloads (PDFs, images, apps, etc.) via native
+        Windows Save File dialog. Downloads work normally even though
+        the session is off-the-record.
+        """
+        suggested = download.suggestedFileName() or "download"
+        default_dir = QStandardPaths.writableLocation(
+            QStandardPaths.StandardLocation.DownloadLocation
+        )
+        default_path = os.path.join(default_dir, suggested)
+
+        save_path, _ = QFileDialog.getSaveFileName(
+            self, "Save File", default_path
+        )
+        if save_path:
+            download.setDownloadDirectory(str(Path(save_path).parent))
+            download.setDownloadFileName(Path(save_path).name)
+            download.accept()
+        else:
+            download.cancel()
+
+    # ── Session Shredder on Close ─────────────────────────────────────
+    def closeEvent(self, event):
+        """
+        Shreds all session data on browser close.
+        Belt-and-suspenders on top of off-the-record profile auto-cleanup.
+        """
+        try:
+            store = self.privacy_profile.cookieStore()
+            store.deleteAllCookies()
+            self.privacy_profile.clearHttpCache()
+            self.privacy_profile.clearAllVisitedLinks()
+            self.web_view.setPage(None)
+        except Exception:
+            pass
+        super().closeEvent(event)

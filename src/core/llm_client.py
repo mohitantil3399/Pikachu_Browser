@@ -56,7 +56,7 @@ class ResilientLLMClient:
                     api_key=self.openrouter_key,
                     base_url=self.openrouter_base_url,
                     default_headers={
-                        "HTTP-Referer": "http://localhost:8080",
+                        "HTTP-Referer": "http://localhost:8888",
                         "X-Title": "Pikachu AI Browser"
                     }
                 )
@@ -242,7 +242,7 @@ class ResilientLLMClient:
 
                     headers = {
                         "Authorization": f"Bearer {self.openrouter_key}",
-                        "HTTP-Referer": "http://localhost:8080",
+                        "HTTP-Referer": "http://localhost:8888",
                         "X-Title": "Pikachu AI Browser",
                         "Content-Type": "application/json"
                     }

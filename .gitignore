@@ -54,3 +54,7 @@ wheels/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Documentation / Reference guides
+src/ui/animejs_guide.md
+src/ui/basictoadv.md

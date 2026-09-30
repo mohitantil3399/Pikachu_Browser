@@ -49,7 +49,7 @@ class ResilientSearchClient:
             self.searxng_online = False
             return False
 
-    def search_searxng(self, query: str, num_results: int = 5, timeout: float = 2.8) -> dict:
+    def search_searxng(self, query: str, num_results: int = 5, timeout: float = 6.0) -> dict:
         """Executes search on local SearXNG instance."""
         try:
             params = {

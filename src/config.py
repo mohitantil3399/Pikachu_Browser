@@ -10,7 +10,7 @@ load_dotenv(ROOT_DIR / ".env")
 APP_TITLE = "Pikachu AI - Agentic Web & Research Browser"
 DEFAULT_DOC_URL = str(Path(__file__).resolve().parent / "ui" / "assets" / "home.html").replace("\\", "/")
 DEFAULT_DOC_URL = "file:///" + DEFAULT_DOC_URL if not DEFAULT_DOC_URL.startswith("file:") else DEFAULT_DOC_URL
-SEARXNG_ENDPOINT = os.getenv("SEARXNG_ENDPOINT", "http://localhost:8080/search")
+SEARXNG_ENDPOINT = os.getenv("SEARXNG_ENDPOINT", "http://localhost:8888/search")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 TAVILY_SEARCH_ENDPOINT = os.getenv("TAVILY_SEARCH_ENDPOINT", "https://api.tavily.com/search")
 PRIMARY_SEARCH_PROVIDER = os.getenv("PRIMARY_SEARCH_PROVIDER", "searxng").lower()
