@@ -68,45 +68,25 @@ QLineEdit#urlBar:focus {
     background-color: #191d27;
 }
 
-/* Search Engine Status & Mode Quick Action */
-QPushButton#searchQuickBtn {
-    background-color: #181c25;
+/* Dedicated Web Search Input Box */
+QLineEdit#webSearchBox {
+    background-color: #161922;
     border: 1px solid #282f3d;
-    border-radius: 7px;
-    color: #c9d1d9;
-    font-size: 12px;
-    font-weight: 600;
-    padding: 6px 14px;
+    border-radius: 8px;
+    padding: 7px 12px;
+    color: #f0f6fc;
+    font-size: 13px;
+    min-width: 200px;
+    max-width: 320px;
+    selection-background-color: #d49b35;
+    selection-color: #0c0d12;
 }
 
-QPushButton#searchQuickBtn:hover {
-    background-color: #222836;
-    border: 1px solid #3b465b;
-    color: #ffffff;
+QLineEdit#webSearchBox:focus {
+    border: 1px solid #d49b35;
+    background-color: #191d27;
 }
 
-/* Search Engine Live Health Pill */
-QLabel#searchHealthBadge {
-    background-color: #161b24;
-    border: 1px solid #28303f;
-    border-radius: 6px;
-    color: #8b949e;
-    font-size: 11px;
-    font-weight: 600;
-    padding: 5px 10px;
-}
-
-QLabel#searchHealthBadge[status="searxng"] {
-    color: #10b981;
-    border: 1px solid #1f3b31;
-    background-color: #111e19;
-}
-
-QLabel#searchHealthBadge[status="tavily"] {
-    color: #e5aa38;
-    border: 1px solid #3d321d;
-    background-color: #1f1b13;
-}
 
 /* Pikachu AI Assistant Toggle Button */
 QPushButton#pikachuToggleBtn {
@@ -151,16 +131,6 @@ QLabel#drawerSubtitle {
     font-weight: 500;
 }
 
-QLabel#drawerEngineBadge {
-    background-color: #191d27;
-    border: 1px solid #2b3343;
-    border-radius: 6px;
-    color: #d49b35;
-    font-size: 10px;
-    font-weight: 700;
-    padding: 3px 8px;
-    letter-spacing: 0.3px;
-}
 
 QPushButton#drawerCloseBtn {
     background-color: transparent;

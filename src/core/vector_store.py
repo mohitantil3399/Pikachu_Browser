@@ -132,3 +132,44 @@ class VectorStoreManager:
             print(f"[VectorStore] Query error: {e}")
 
         return []
+
+    def add_intelligence_chunk(self, topic: str, text: str, metadata: dict = None):
+        """Pre-digests a specialized intelligence report (weather, trading, locality news) into ChromaDB."""
+        if not self._collection or not text:
+            return
+        
+        meta = metadata or {}
+        meta["topic"] = topic
+        meta["type"] = "specialized_intelligence"
+        
+        # Consistent ID based on topic and content hash
+        cid = f"intel_{topic}_{hashlib.md5(text.encode('utf-8')).hexdigest()[:12]}"
+        
+        try:
+            self._collection.upsert(
+                documents=[text],
+                ids=[cid],
+                metadatas=[meta]
+            )
+            print(f"[VectorStore] Pre-digested intelligence chunk stored for topic: '{topic}'")
+        except Exception as e:
+            print(f"[VectorStore] Error storing intelligence chunk for {topic}: {e}")
+
+    def query_intelligence(self, topic: str, user_query: str, n_results: int = 3) -> list[str]:
+        """Queries pre-digested intelligence from ChromaDB for a specific domain."""
+        if not self._collection:
+            return []
+        
+        try:
+            results = self._collection.query(
+                query_texts=[user_query],
+                n_results=n_results,
+                where={"topic": topic}
+            )
+            if results and results.get("documents") and results["documents"][0]:
+                return results["documents"][0]
+        except Exception as e:
+            print(f"[VectorStore] Query intelligence error for {topic}: {e}")
+        
+        # Fallback to general query
+        return self.query(user_query, n_results=n_results)

@@ -3,7 +3,7 @@ import datetime
 import markdown
 from pathlib import Path
 from PySide6.QtCore import Qt, Signal, QRect, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup, QUrl
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QIcon, QTextCursor
 from PySide6.QtWidgets import (
     QFrame, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QProgressBar, QTextBrowser, QLineEdit, QFileDialog, QGraphicsOpacityEffect
@@ -11,22 +11,28 @@ from PySide6.QtWidgets import (
 from src.core.vector_store import VectorStoreManager
 from src.core.searxng_client import SearxngClient
 from src.core.llm_client import LLMClient
-from src.workers.rag_worker import RagQueryWorker, GeneralQueryWorker
-from src.workers.searxng_worker import SearxngQueryWorker
+from src.workers.specialized_worker import SpecializedQueryWorker
+from src.workers.digest_worker import IntelligenceDigestWorker
 
 ASSETS_DIR = Path(__file__).resolve().parent / "assets" / "icons"
 
 class FloatingChatDrawer(QFrame):
     """
-    Floating Pikachu AI assistant drawer featuring:
-    - Smooth Anime.js-inspired fluid slide and fade animations (QEasingCurve.OutCubic).
-    - Multi-mode intelligence: Page Context RAG, Deep Web Research (SearXNG + Tavily Backup), and Agent Chat.
-    - Automatic fallback to Tavily Search whenever SearXNG is unavailable.
-    - Clickable citations that navigate the parent browser directly.
+    Floating Pikachu AI assistant specialized exclusively for:
+    1. Locality News (Regional, civic & community updates)
+    2. Trading Summary of the Week (Markets, indices, crypto, commodities)
+    3. Weather Update (Meteorological conditions, OpenWeatherMap telemetry)
+
+    Core Capabilities:
+    - Pre-digests all 3 domains into local ChromaDB beforehand on a separate thread.
+    - Strictly verifies baseline facts against live Tavily results (top 5 sources, 250-character summary).
+    - Real-time token streaming with fluid UI rendering.
+    - Anime.js-inspired fluid easing transitions (QEasingCurve.OutCubic).
+    - Gatekeeper enforcing only the 3 specialized domains.
     """
     close_requested = Signal()
     url_navigation_requested = Signal(str)
-    
+
     def __init__(self, parent=None, vector_store=None, searxng_client=None, llm_client=None, get_current_url_cb=None):
         super().__init__(parent)
         self.setObjectName("pikachuDrawer")
@@ -35,8 +41,15 @@ class FloatingChatDrawer(QFrame):
         self.llm_client = llm_client or LLMClient()
         self.get_current_url = get_current_url_cb
 
-        self.current_mode = "page_rag"  # Options: "page_rag", "searxng", "general"
+        # Modes: "locality_news", "trading_summary", "weather"
+        self.current_mode = "locality_news"
         self.active_animation = None
+        self.active_query_worker = None
+        self.digest_worker = None
+
+        # Streaming state variables
+        self.stream_start_pos = 0
+        self.pending_sources = []
 
         # Setup opacity effect for smooth fade transitions
         self.opacity_effect = QGraphicsOpacityEffect(self)
@@ -44,7 +57,6 @@ class FloatingChatDrawer(QFrame):
         self.opacity_effect.setOpacity(1.0)
 
         self._init_ui()
-        self.update_search_engine_badge()
 
     def _get_icon(self, name: str) -> QIcon:
         icon_path = ASSETS_DIR / name
@@ -66,8 +78,8 @@ class FloatingChatDrawer(QFrame):
         title_box.setSpacing(1)
         title_label = QLabel("PIKACHU AI")
         title_label.setObjectName("drawerTitle")
-        
-        subtitle_label = QLabel("Research Agent")
+
+        subtitle_label = QLabel("Specialized Intelligence Agent")
         subtitle_label.setObjectName("drawerSubtitle")
         title_box.addWidget(title_label)
         title_box.addWidget(subtitle_label)
@@ -75,10 +87,13 @@ class FloatingChatDrawer(QFrame):
 
         header_layout.addStretch()
 
-        # Live Search Engine & Backup Status Badge
-        self.engine_badge = QLabel("SearXNG · Tavily Ready")
-        self.engine_badge.setObjectName("drawerEngineBadge")
-        header_layout.addWidget(self.engine_badge)
+        # ChromaDB Sync Button
+        self.btn_sync = QPushButton("↻ Sync ChromaDB")
+        self.btn_sync.setObjectName("actionSecondaryBtn")
+        self.btn_sync.setToolTip("Pre-digest News, Trading & Weather into ChromaDB (separate thread)")
+        self.btn_sync.setCursor(Qt.PointingHandCursor)
+        self.btn_sync.clicked.connect(self.trigger_background_digest)
+        header_layout.addWidget(self.btn_sync)
 
         # Close Button
         self.btn_close = QPushButton()
@@ -91,39 +106,36 @@ class FloatingChatDrawer(QFrame):
 
         layout.addLayout(header_layout)
 
-        # 2. Mode Selector Segment Bar
+        # 2. Specialized Domain Selector Segment Bar
         mode_frame = QFrame()
         mode_frame.setObjectName("modeSelectorFrame")
         mode_layout = QHBoxLayout(mode_frame)
         mode_layout.setContentsMargins(3, 3, 3, 3)
         mode_layout.setSpacing(4)
 
-        self.btn_page_rag = QPushButton("Page Context")
-        self.btn_page_rag.setObjectName("modeBtn")
-        self.btn_page_rag.setIcon(self._get_icon("file-text.svg"))
-        self.btn_page_rag.setProperty("active", "true")
-        self.btn_page_rag.clicked.connect(lambda: self.set_mode("page_rag"))
+        self.btn_locality = QPushButton("📍 Locality News")
+        self.btn_locality.setObjectName("modeBtn")
+        self.btn_locality.setProperty("active", "true")
+        self.btn_locality.clicked.connect(lambda: self.set_mode("locality_news"))
 
-        self.btn_searxng = QPushButton("Deep Research")
-        self.btn_searxng.setObjectName("modeBtn")
-        self.btn_searxng.setIcon(self._get_icon("globe.svg"))
-        self.btn_searxng.setProperty("active", "false")
-        self.btn_searxng.clicked.connect(lambda: self.set_mode("searxng"))
+        self.btn_trading = QPushButton("📈 Trading Summary")
+        self.btn_trading.setObjectName("modeBtn")
+        self.btn_trading.setProperty("active", "false")
+        self.btn_trading.clicked.connect(lambda: self.set_mode("trading_summary"))
 
-        self.btn_general = QPushButton("Agent Chat")
-        self.btn_general.setObjectName("modeBtn")
-        self.btn_general.setIcon(self._get_icon("message-square.svg"))
-        self.btn_general.setProperty("active", "false")
-        self.btn_general.clicked.connect(lambda: self.set_mode("general"))
+        self.btn_weather = QPushButton("⛅ Weather Update")
+        self.btn_weather.setObjectName("modeBtn")
+        self.btn_weather.setProperty("active", "false")
+        self.btn_weather.clicked.connect(lambda: self.set_mode("weather"))
 
-        mode_layout.addWidget(self.btn_page_rag)
-        mode_layout.addWidget(self.btn_searxng)
-        mode_layout.addWidget(self.btn_general)
+        mode_layout.addWidget(self.btn_locality)
+        mode_layout.addWidget(self.btn_trading)
+        mode_layout.addWidget(self.btn_weather)
         layout.addWidget(mode_frame)
 
         # 3. Status & Animated Hairline Progress Bar
         status_layout = QHBoxLayout()
-        self.status_label = QLabel("Ready")
+        self.status_label = QLabel("ChromaDB baseline active · Tavily 5-result verification ready")
         self.status_label.setObjectName("statusLabel")
         status_layout.addWidget(self.status_label)
         status_layout.addStretch()
@@ -140,28 +152,28 @@ class FloatingChatDrawer(QFrame):
         self.chat_history.setObjectName("chatHistory")
         self.chat_history.setOpenExternalLinks(False)
         self.chat_history.anchorClicked.connect(self._handle_link_clicked)
-        self._append_system_intro()
+        # Default text removed per user specification
         layout.addWidget(self.chat_history, stretch=1)
 
         # 5. Quick Interactive Action Pills
         quick_layout = QHBoxLayout()
         quick_layout.setSpacing(6)
-        
-        pill_summary = QPushButton("Summarize Page")
-        pill_summary.setObjectName("quickPill")
-        pill_summary.clicked.connect(lambda: self.quick_prompt("Summarize the key takeaways and core concepts of this page."))
 
-        pill_code = QPushButton("Code Excerpts")
-        pill_code.setObjectName("quickPill")
-        pill_code.clicked.connect(lambda: self.quick_prompt("Extract all code examples from this page and explain how to run them."))
+        pill_news = QPushButton("📍 Sonipat Civic News")
+        pill_news.setObjectName("quickPill")
+        pill_news.clicked.connect(lambda: self.quick_prompt("What are the latest civic and regional news updates for Sonipat?"))
 
-        pill_web = QPushButton("Web Research")
-        pill_web.setObjectName("quickPill")
-        pill_web.clicked.connect(lambda: self.quick_web_prompt("What are the modern 2026 best practices for FastAPI?"))
+        pill_trading = QPushButton("📈 Weekly Trading Summary")
+        pill_trading.setObjectName("quickPill")
+        pill_trading.clicked.connect(lambda: self.quick_prompt("Give me the weekly trading summary for Nifty, Sensex, and global markets."))
 
-        quick_layout.addWidget(pill_summary)
-        quick_layout.addWidget(pill_code)
-        quick_layout.addWidget(pill_web)
+        pill_weather = QPushButton("⛅ Live Weather Telemetry")
+        pill_weather.setObjectName("quickPill")
+        pill_weather.clicked.connect(lambda: self.quick_prompt("What is the current live weather and temperature forecast for Sonipat?"))
+
+        quick_layout.addWidget(pill_news)
+        quick_layout.addWidget(pill_trading)
+        quick_layout.addWidget(pill_weather)
         quick_layout.addStretch()
         layout.addLayout(quick_layout)
 
@@ -171,7 +183,7 @@ class FloatingChatDrawer(QFrame):
 
         self.chat_input = QLineEdit()
         self.chat_input.setObjectName("chatInput")
-        self.chat_input.setPlaceholderText("Ask Pikachu about this page context...")
+        self.chat_input.setPlaceholderText("Ask about regional news, civic developments in Sonipat...")
         self.chat_input.returnPressed.connect(self.send_query)
 
         self.send_btn = QPushButton("Send")
@@ -203,38 +215,56 @@ class FloatingChatDrawer(QFrame):
         layout.addLayout(action_layout)
 
     def _append_system_intro(self):
-        intro_html = (
-            "<div style='margin-bottom: 8px;'>"
-            "<span style='color: #d49b35; font-weight: 700;'>Pikachu AI</span> "
-            "<span style='color: #8b949e; font-size: 11px;'>Research Assistant</span>"
-            "<div style='color: #c9d1d9; margin-top: 4px; font-size: 12px;'>"
-            "Ready. Ask questions about the current page, execute live multi-engine web research "
-            "(SearXNG with automatic Tavily backup), or converse directly."
-            "</div></div>"
-        )
-        self.chat_history.setHtml(intro_html)
+        """No-op: default intro text removed from chat body per user request."""
+        pass
 
     def _handle_link_clicked(self, qurl: QUrl):
         url_str = qurl.toString()
         if url_str.startswith(("http://", "https://")):
             self.url_navigation_requested.emit(url_str)
 
-    def update_search_engine_badge(self):
-        """Reflects current search engine health: SearXNG primary vs Tavily backup."""
-        # Use fast health check
-        is_searxng = self.searxng_client.check_searxng_health(timeout=0.8)
-        if is_searxng:
-            self.engine_badge.setText("SearXNG Active")
-            self.engine_badge.setStyleSheet(
-                "background-color: #111e19; color: #10b981; border: 1px solid #1f3b31; "
-                "border-radius: 6px; font-size: 10px; font-weight: 700; padding: 3px 8px;"
-            )
+    def set_mode(self, mode: str):
+        self.current_mode = mode
+        self.btn_locality.setProperty("active", "true" if mode == "locality_news" else "false")
+        self.btn_trading.setProperty("active", "true" if mode == "trading_summary" else "false")
+        self.btn_weather.setProperty("active", "true" if mode == "weather" else "false")
+
+        for btn in [self.btn_locality, self.btn_trading, self.btn_weather]:
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
+
+        if mode == "locality_news":
+            self.chat_input.setPlaceholderText("Ask about regional news, civic developments in Sonipat...")
+        elif mode == "trading_summary":
+            self.chat_input.setPlaceholderText("Ask about this week's market recap, Nifty, Sensex, commodities...")
         else:
-            self.engine_badge.setText("Tavily Backup Active")
-            self.engine_badge.setStyleSheet(
-                "background-color: #1f1b13; color: #e5aa38; border: 1px solid #3d321d; "
-                "border-radius: 6px; font-size: 10px; font-weight: 700; padding: 3px 8px;"
-            )
+            self.chat_input.setPlaceholderText("Ask about live weather telemetry, temperature, forecasts...")
+
+    def trigger_background_digest(self):
+        """Launches pre-digestion pass on a dedicated background QThread."""
+        if self.digest_worker and self.digest_worker.isRunning():
+            self.status_label.setText("ChromaDB pre-digestion already in progress...")
+            return
+
+        self.progress_bar.setValue(5)
+        self.progress_bar.show()
+        self.status_label.setText("Pre-digesting News, Markets & Weather into ChromaDB (separate thread)...")
+
+        self.digest_worker = IntelligenceDigestWorker(self.vector_store)
+        self.digest_worker.status_signal.connect(self.set_status)
+        self.digest_worker.progress_signal.connect(self.update_indexing_progress)
+        self.digest_worker.finished_signal.connect(self.on_digest_complete)
+        self.digest_worker.start()
+
+    def on_digest_complete(self, success: bool, msg: str):
+        self.status_label.setText(msg)
+        self.progress_bar.hide()
+
+    def on_indexing_complete(self, success: bool, msg: str):
+        """Handler for webpage indexing completion from main window."""
+        if success:
+            self.progress_bar.hide()
+
 
     # --- ANIME.JS INSPIRED FLUID EASING ANIMATIONS ---
 
@@ -269,7 +299,6 @@ class FloatingChatDrawer(QFrame):
         group.start()
 
         self.chat_input.setFocus()
-        self.update_search_engine_badge()
 
     def hide_animated(self, on_finished_cb=None):
         """Smoothly slides the drawer downward and fades out using InCubic easing."""
@@ -305,30 +334,10 @@ class FloatingChatDrawer(QFrame):
         self.active_animation = group
         group.start()
 
-    def set_mode(self, mode: str):
-        self.current_mode = mode
-        self.btn_page_rag.setProperty("active", "true" if mode == "page_rag" else "false")
-        self.btn_searxng.setProperty("active", "true" if mode == "searxng" else "false")
-        self.btn_general.setProperty("active", "true" if mode == "general" else "false")
-
-        # Refresh styles
-        for btn in [self.btn_page_rag, self.btn_searxng, self.btn_general]:
-            btn.style().unpolish(btn)
-            btn.style().polish(btn)
-
-        if mode == "page_rag":
-            self.chat_input.setPlaceholderText("Ask Pikachu about this page context...")
-        elif mode == "searxng":
-            self.chat_input.setPlaceholderText("Live web search (SearXNG · Tavily backup)...")
-            self.update_search_engine_badge()
-        else:
-            self.chat_input.setPlaceholderText("Direct assistant chat...")
-
     def update_indexing_progress(self, val: int):
-        """Smoothly interpolates progress value with OutQuad easing."""
         self.progress_bar.show()
         prog_anim = QPropertyAnimation(self.progress_bar, b"value")
-        prog_anim.setDuration(220)
+        prog_anim.setDuration(200)
         prog_anim.setStartValue(self.progress_bar.value())
         prog_anim.setEndValue(val)
         prog_anim.setEasingCurve(QEasingCurve.OutQuad)
@@ -337,18 +346,7 @@ class FloatingChatDrawer(QFrame):
     def set_status(self, text: str):
         self.status_label.setText(text)
 
-    def on_indexing_complete(self, success: bool, msg: str):
-        self.status_label.setText(msg)
-        if success:
-            self.progress_bar.hide()
-
     def quick_prompt(self, query: str):
-        self.set_mode("page_rag")
-        self.chat_input.setText(query)
-        self.send_query()
-
-    def quick_web_prompt(self, query: str):
-        self.set_mode("searxng")
         self.chat_input.setText(query)
         self.send_query()
 
@@ -357,7 +355,7 @@ class FloatingChatDrawer(QFrame):
         if not query:
             return
 
-        # Render user message
+        # Render user message bubble
         user_html = (
             "<div style='margin-top: 10px; margin-bottom: 8px;'>"
             "<span style='color: #7d8590; font-weight: 700; font-size: 11px;'>You</span>"
@@ -366,47 +364,95 @@ class FloatingChatDrawer(QFrame):
         )
         self.chat_history.append(user_html)
         self.chat_input.clear()
-        self.status_label.setText("Reasoning...")
+        self.status_label.setText("Analyzing domain scope...")
 
-        curr_url = self.get_current_url() if self.get_current_url else None
-
-        if self.current_mode == "page_rag":
-            self.worker = RagQueryWorker(query, self.vector_store, self.llm_client, current_url=curr_url)
-        elif self.current_mode == "searxng":
-            self.worker = SearxngQueryWorker(query, self.searxng_client, self.llm_client)
-            self.worker.status_signal.connect(self.set_status)
-            self.worker.provider_signal.connect(self._on_search_provider_used)
-        else:
-            self.worker = GeneralQueryWorker(query, self.llm_client)
-
-        self.worker.answer_signal.connect(self.on_answer_received)
-        self.worker.start()
-
-    def _on_search_provider_used(self, provider: str):
-        if "tavily" in provider.lower():
-            self.engine_badge.setText("Tavily Backup Active")
-            self.engine_badge.setStyleSheet(
-                "background-color: #1f1b13; color: #e5aa38; border: 1px solid #3d321d; "
-                "border-radius: 6px; font-size: 10px; font-weight: 700; padding: 3px 8px;"
-            )
-        else:
-            self.engine_badge.setText("SearXNG Active")
-            self.engine_badge.setStyleSheet(
-                "background-color: #111e19; color: #10b981; border: 1px solid #1f3b31; "
-                "border-radius: 6px; font-size: 10px; font-weight: 700; padding: 3px 8px;"
-            )
-
-    def on_answer_received(self, answer: str):
-        self.status_label.setText("Ready")
-        formatted_content = markdown.markdown(answer, extensions=['fenced_code', 'codehilite', 'tables'])
-        
-        agent_html = (
-            "<div style='margin-top: 8px; margin-bottom: 12px;'>"
-            "<span style='color: #d49b35; font-weight: 700; font-size: 11px;'>Pikachu Agent</span>"
-            f"<div style='background-color: #11141c; border: 1px solid #222836; border-radius: 6px; padding: 10px 12px; margin-top: 4px; color: #e6edf3; font-size: 13px;'>{formatted_content}</div>"
+        # Setup streaming cursor in chat history
+        self.chat_history.append(
+            "<div style='margin-top: 8px; margin-bottom: 2px;'>"
+            "<span style='color: #d49b35; font-weight: 700; font-size: 11px;'>Pikachu Agent</span> "
+            "<span style='color: #7d8590; font-size: 10px;'>· Verified Intelligence Stream</span>"
             "</div>"
         )
-        self.chat_history.append(agent_html)
+
+        cursor = self.chat_history.textCursor()
+        cursor.movePosition(QTextCursor.End)
+        self.stream_start_pos = cursor.position()
+        self.pending_sources = []
+
+        # Spawn specialized worker strictly enforcing 3 domains + Tavily verification
+        self.active_query_worker = SpecializedQueryWorker(
+            query=query,
+            active_tab=self.current_mode,
+            vector_store=self.vector_store,
+            searxng_client=self.searxng_client,
+            llm_client=self.llm_client
+        )
+        self.active_query_worker.status_signal.connect(self.set_status)
+        self.active_query_worker.chunk_signal.connect(self._on_chunk_received)
+        self.active_query_worker.sources_signal.connect(self._on_sources_received)
+        self.active_query_worker.finished_signal.connect(self._on_finished_received)
+        self.active_query_worker.start()
+
+    def _on_chunk_received(self, chunk: str):
+        """Streams text chunks in real-time directly into QTextBrowser."""
+        cursor = self.chat_history.textCursor()
+        cursor.movePosition(QTextCursor.End)
+        cursor.insertText(chunk)
+        self.chat_history.setTextCursor(cursor)
+        self.chat_history.ensureCursorVisible()
+
+    def _on_sources_received(self, sources: list):
+        """Stores verified Tavily top 5 sources (250 chars) for citation card rendering."""
+        self.pending_sources = sources
+
+    def _on_finished_received(self, full_text: str):
+        """Cleans streamed text buffer and replaces it with rendered Markdown and Tavily Verification Card."""
+        cursor = self.chat_history.textCursor()
+        cursor.setPosition(self.stream_start_pos)
+        cursor.movePosition(QTextCursor.End, QTextCursor.KeepAnchor)
+        cursor.removeSelectedText()
+
+        # Format full markdown
+        formatted_md = markdown.markdown(full_text, extensions=['fenced_code', 'codehilite', 'tables'])
+
+        # Build Tavily Verification Card (Top 5 Results, 250 characters summary)
+        verification_card_html = ""
+        if self.pending_sources:
+            verification_card_html = (
+                "<div style='margin-top: 10px; margin-bottom: 4px; padding: 10px 12px; "
+                "background-color: #0d1117; border: 1px solid #28303f; border-radius: 6px;'>"
+                "<div style='display: flex; align-items: center; margin-bottom: 6px;'>"
+                "<span style='color: #d49b35; font-weight: 700; font-size: 11px;'>✓ Verified against Tavily</span> "
+                "<span style='color: #7d8590; font-size: 11px; margin-left: 6px;'>(Top 5 results · 250-character summary)</span>"
+                "</div>"
+            )
+            for i, item in enumerate(self.pending_sources[:5], 1):
+                title = item.get("title", "Source")
+                url = item.get("url", "#")
+                summary = item.get("summary", "")[:250]
+                verification_card_html += (
+                    f"<div style='margin-top: 6px; padding-top: 6px; border-top: 1px solid #1c212c;'>"
+                    f"<div style='font-size: 11px;'>"
+                    f"<span style='color: #d49b35; font-weight: 600;'>[{i}]</span> "
+                    f"<a href='{url}' style='color: #58a6ff; text-decoration: none; font-weight: 600;'>{title}</a>"
+                    f"</div>"
+                    f"<div style='color: #8b949e; font-size: 11px; margin-top: 3px; line-height: 1.4;'>{summary}</div>"
+                    f"<div style='color: #484f58; font-size: 10px; margin-top: 2px;'>{url}</div>"
+                    f"</div>"
+                )
+            verification_card_html += "</div>"
+
+        final_bubble_html = (
+            f"<div style='background-color: #11141c; border: 1px solid #222836; border-radius: 6px; "
+            f"padding: 10px 12px; margin-top: 4px; color: #e6edf3; font-size: 13px; line-height: 1.5;'>"
+            f"{formatted_md}"
+            f"{verification_card_html}"
+            f"</div>"
+        )
+        cursor.insertHtml(final_bubble_html)
+        self.chat_history.setTextCursor(cursor)
+        self.chat_history.ensureCursorVisible()
+        self.status_label.setText("Ready")
 
     def clear_chat(self):
         self.chat_history.clear()
@@ -419,11 +465,10 @@ class FloatingChatDrawer(QFrame):
             self.status_label.setText("Export failed: Empty chat")
             return
 
-        current_url = self.get_current_url() if self.get_current_url else "N/A"
-        filename = f"Pikachu_Research_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        filename = f"Pikachu_Intelligence_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
         file_path, _ = QFileDialog.getSaveFileName(
             self,
-            "Save Research Transcript",
+            "Save Intelligence Transcript",
             filename,
             "Text Files (*.txt);;All Files (*)"
         )
@@ -431,10 +476,9 @@ class FloatingChatDrawer(QFrame):
         if file_path:
             try:
                 with open(file_path, "w", encoding="utf-8") as f:
-                    f.write("=== PIKACHU AI AGENTIC BROWSER RESEARCH TRANSCRIPT ===\n")
+                    f.write("=== PIKACHU AI VERIFIED INTELLIGENCE TRANSCRIPT ===\n")
                     f.write(f"Generated: {datetime.datetime.now().isoformat()}\n")
-                    f.write(f"Active Document: {current_url}\n")
-                    f.write(f"Active Mode: {self.current_mode}\n")
+                    f.write(f"Active Domain: {self.current_mode}\n")
                     f.write("="*60 + "\n\n")
                     f.write(history_text)
                 self.status_label.setText(f"Exported to {os.path.basename(file_path)}")

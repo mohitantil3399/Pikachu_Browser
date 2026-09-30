@@ -8,7 +8,7 @@ load_dotenv(ROOT_DIR / ".env")
 
 # --- APP CONSTANTS ---
 APP_TITLE = "Pikachu AI - Agentic Web & Research Browser"
-DEFAULT_DOC_URL = "https://fastapi.tiangolo.com/tutorial/first-steps/"
+DEFAULT_DOC_URL = "https://kotlinlang.org/docs/kotlin-tour-collections.html"
 SEARXNG_ENDPOINT = os.getenv("SEARXNG_ENDPOINT", "http://localhost:8080/search")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 TAVILY_SEARCH_ENDPOINT = os.getenv("TAVILY_SEARCH_ENDPOINT", "https://api.tavily.com/search")
@@ -26,7 +26,7 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 OPENROUTER_FREE_MODEL = os.getenv("OPENROUTER_FREE_MODEL", "openrouter/free")
 
-PRIMARY_LLM_PROVIDER = os.getenv("PRIMARY_LLM_PROVIDER", "openrouter").lower()
+PRIMARY_LLM_PROVIDER = os.getenv("PRIMARY_LLM_PROVIDER", "groq").lower()
 
 # --- VECTOR STORE CONFIG ---
 CHROMA_DB_PATH = str(ROOT_DIR / "chroma_db_cache")
@@ -37,3 +37,10 @@ COLLECTION_NAME = "active_doc_collection"
 DEFAULT_CHUNK_SIZE = 600
 DEFAULT_CHUNK_OVERLAP = 100
 BATCH_SIZE = 32
+
+# --- SPECIALIZED DOMAIN INTELLIGENCE CONFIG ---
+WEATHER_API_KEY = os.getenv("WEATHER_API_KEY", "")
+DEFAULT_CITY = os.getenv("DEFAULT_CITY", "Sonipat")
+DEFAULT_REGION = os.getenv("DEFAULT_REGION", "Haryana")
+DEFAULT_COUNTRY = os.getenv("DEFAULT_COUNTRY", "India")
+INTELLIGENCE_COLLECTION_NAME = "pikachu_specialized_intelligence"

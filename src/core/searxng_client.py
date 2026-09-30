@@ -144,6 +144,74 @@ class ResilientSearchClient:
                 "error": f"Tavily API request error: {str(e)}"
             }
 
+    def verify_with_tavily(self, query: str, max_results: int = 5, max_chars_per_summary: int = 250, timeout: float = 8.0) -> dict:
+        """
+        Fetches top 5 results from Tavily with strictly 250-character summaries
+        for cross-verifying pre-digested intelligence before Pikachu AI answers.
+        """
+        if not self.tavily_api_key:
+            return {
+                "success": False,
+                "error": "TAVILY_API_KEY not configured",
+                "results": []
+            }
+
+        try:
+            payload = {
+                "api_key": self.tavily_api_key,
+                "query": query,
+                "search_depth": "basic",
+                "max_results": max_results,
+                "include_answer": False
+            }
+            with httpx.Client(timeout=timeout) as client:
+                resp = client.post(self.tavily_endpoint, json=payload)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    raw_results = data.get("results", [])[:max_results]
+                    verified = []
+                    for item in raw_results:
+                        full_content = item.get("content", "") or ""
+                        # Strict 250 characters summary per user specification
+                        truncated_summary = full_content[:max_chars_per_summary].strip()
+                        verified.append({
+                            "title": item.get("title", "No Title"),
+                            "url": item.get("url", ""),
+                            "summary": truncated_summary,
+                            "score": item.get("score", 0.0)
+                        })
+                    return {
+                        "success": True,
+                        "query": query,
+                        "results": verified
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "error": f"Tavily HTTP {resp.status_code}",
+                        "results": []
+                    }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "results": []
+            }
+
+    def format_verification_context(self, tavily_res: dict) -> str:
+        """Formats the top 5 Tavily results (250-char summaries) into structured verification context."""
+        if not tavily_res.get("success") or not tavily_res.get("results"):
+            return "No Tavily verification results available."
+
+        lines = ["Live Tavily Verification Feed (Top 5 Results · 250 Chars Summary):"]
+        for i, item in enumerate(tavily_res["results"], 1):
+            lines.append(
+                f"[{i}] {item.get('title')}\n"
+                f"    Summary: {item.get('summary')}\n"
+                f"    Source URL: {item.get('url')}\n"
+            )
+        return "\n".join(lines)
+
     def search(self, query: str, num_results: int = 5) -> dict:
         """
         Executes search with automatic failover:
@@ -181,17 +249,17 @@ class ResilientSearchClient:
         if not search_res.get("success") or not search_res.get("results"):
             return "No web search results available."
 
-        provider = search_res.get("provider", "Web Search")
-        backup_note = " [Primary SearXNG offline - Tavily Backup Active]" if search_res.get("backup_activated") else ""
-        header = f"Web Search Context (Source: {provider}{backup_note}):\n"
+        provider = search_res.get("provider", "Web")
+        header = "Web Search Context Excerpts:\n"
 
         context_parts = [header]
         for i, item in enumerate(search_res["results"], 1):
+            source_engine = item.get("engine") or provider
             context_parts.append(
-                f"[{i}] Title: {item.get('title')}\n"
-                f"    URL: {item.get('url')}\n"
-                f"    Engine/Source: {item.get('engine', provider)}\n"
-                f"    Excerpt: {item.get('content')}\n"
+                f"[{i}] Title: {item.get('title', 'No Title')}\n"
+                f"    URL: {item.get('url', '')}\n"
+                f"    Engine/Source: {source_engine}\n"
+                f"    Excerpt: {item.get('content', '')}\n"
             )
         return "\n".join(context_parts)
 

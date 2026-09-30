@@ -43,11 +43,9 @@ class AgenticDocBrowser(QMainWindow):
         # Build UI Components
         self._init_ui()
 
-        # Check search engine health and update badges
-        QTimer.singleShot(500, self.update_search_engine_health)
+        # Trigger Pre-digestion in ChromaDB beforehand on separate background thread
+        QTimer.singleShot(500, self.drawer.trigger_background_digest)
 
-        # Trigger Initial Page Ingestion
-        self.trigger_indexing(DEFAULT_DOC_URL)
 
     def _get_icon(self, name: str) -> QIcon:
         icon_path = ASSETS_DIR / name
@@ -95,21 +93,19 @@ class AgenticDocBrowser(QMainWindow):
         self.btn_home.setToolTip("Documentation Home")
         self.btn_home.clicked.connect(self.navigate_home)
 
-        # URL Bar
+        # Address Bar (Current Webpage / URL)
         self.url_bar = QLineEdit(DEFAULT_DOC_URL)
         self.url_bar.setObjectName("urlBar")
+        self.url_bar.setPlaceholderText("Enter web address...")
         self.url_bar.returnPressed.connect(self.load_url)
 
-        # Search Engine Quick Action
-        self.btn_search_quick = QPushButton("Web Search")
-        self.btn_search_quick.setObjectName("searchQuickBtn")
-        self.btn_search_quick.setIcon(self._get_icon("search.svg"))
-        self.btn_search_quick.setToolTip("Open SearXNG / Web Search")
-        self.btn_search_quick.clicked.connect(self.open_search_engine)
-
-        # Live Health Badge (SearXNG vs Tavily Backup)
-        self.search_health_badge = QLabel("SearXNG · Tavily Ready")
-        self.search_health_badge.setObjectName("searchHealthBadge")
+        # Dedicated Web Search Box (Search for other web pages)
+        self.search_box = QLineEdit()
+        self.search_box.setObjectName("webSearchBox")
+        self.search_box.setPlaceholderText("Search the web...")
+        self.search_box.addAction(self._get_icon("search.svg"), QLineEdit.LeadingPosition)
+        self.search_box.setClearButtonEnabled(True)
+        self.search_box.returnPressed.connect(self.execute_web_search)
 
         # Pikachu Assistant Drawer Toggle
         self.btn_toggle_drawer = QPushButton("Pikachu AI Assistant")
@@ -117,14 +113,13 @@ class AgenticDocBrowser(QMainWindow):
         self.btn_toggle_drawer.setIcon(self._get_icon("agent.svg"))
         self.btn_toggle_drawer.clicked.connect(self.toggle_drawer)
 
-        # Assemble Toolbar
+        # Assemble Toolbar (Navigation controls + Address Bar + Web Search Box + Pikachu Assistant)
         self.toolbar.addWidget(self.btn_back)
         self.toolbar.addWidget(self.btn_forward)
         self.toolbar.addWidget(self.btn_reload)
         self.toolbar.addWidget(self.btn_home)
         self.toolbar.addWidget(self.url_bar)
-        self.toolbar.addWidget(self.btn_search_quick)
-        self.toolbar.addWidget(self.search_health_badge)
+        self.toolbar.addWidget(self.search_box)
         self.toolbar.addWidget(self.btn_toggle_drawer)
 
         # 2. Browser View Frame
@@ -156,23 +151,13 @@ class AgenticDocBrowser(QMainWindow):
         return self.url_bar.text()
 
     def update_search_engine_health(self):
-        """Checks if local SearXNG is up; if not, indicates Tavily backup is active."""
-        is_searxng = self.searxng_client.check_searxng_health(timeout=1.0)
-        if is_searxng:
-            self.search_health_badge.setText("SearXNG Active")
-            self.search_health_badge.setProperty("status", "searxng")
-        else:
-            self.search_health_badge.setText("Tavily Backup Active")
-            self.search_health_badge.setProperty("status", "tavily")
-
-        self.search_health_badge.style().unpolish(self.search_health_badge)
-        self.search_health_badge.style().polish(self.search_health_badge)
-        self.drawer.update_search_engine_badge()
+        """No-op: Toolbar search health pill removed per design."""
+        pass
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        # Position floating drawer at bottom right corner overlaying browser frame
-        w, h = 480, 520
+        # Position floating drawer at bottom right corner overlaying browser frame (1.5x scale: 720x780)
+        w, h = 720, 780
         margin = 20
         x = max(20, self.browser_frame.width() - w - margin)
         y = max(20, self.browser_frame.height() - h - margin)
@@ -187,7 +172,8 @@ class AgenticDocBrowser(QMainWindow):
             self.drawer_visible = False
 
     def show_drawer(self):
-        w, h = 480, 520
+        # 1.5x scale: 720x780
+        w, h = 720, 780
         margin = 20
         x = max(20, self.browser_frame.width() - w - margin)
         y = max(20, self.browser_frame.height() - h - margin)
@@ -220,19 +206,44 @@ class AgenticDocBrowser(QMainWindow):
         self.url_bar.setText(target)
         self.web_view.setUrl(QUrl(target))
 
-    def open_search_engine(self):
-        # If SearXNG is online, open local homepage, otherwise search with Tavily
-        if self.searxng_client.searxng_online:
-            searxng_home = "http://localhost:8080"
-            self.navigate_to_url(searxng_home)
-        else:
-            # Switch Pikachu to Deep Research mode and open drawer
-            self.drawer.set_mode("searxng")
-            self.show_drawer()
-            self.drawer.set_status("SearXNG offline · Tavily Search Backup Ready")
-
     def load_url(self):
-        self.navigate_to_url(self.url_bar.text())
+        raw = self.url_bar.text().strip()
+        if not raw:
+            return
+
+        is_url = False
+        if raw.startswith(("http://", "https://", "localhost:", "file://")):
+            is_url = True
+        elif "." in raw and " " not in raw:
+            is_url = True
+
+        if is_url:
+            target = raw
+            if not target.startswith(("http://", "https://", "file://")):
+                target = "https://" + target
+            self.navigate_to_url(target)
+        else:
+            from urllib.parse import quote_plus
+            q = quote_plus(raw)
+            if self.searxng_client.check_searxng_health(timeout=0.6):
+                self.navigate_to_url(f"http://localhost:8080/search?q={q}")
+            else:
+                self.navigate_to_url(f"https://duckduckgo.com/?q={q}")
+
+    def execute_web_search(self):
+        query = self.search_box.text().strip()
+        if not query:
+            return
+        
+        from urllib.parse import quote_plus
+        q = quote_plus(query)
+
+        if self.searxng_client.check_searxng_health(timeout=0.6):
+            search_url = f"http://localhost:8080/search?q={q}"
+        else:
+            search_url = f"https://duckduckgo.com/?q={q}"
+        
+        self.navigate_to_url(search_url)
 
     def on_url_changed(self, qurl):
         url = qurl.toString()
@@ -252,5 +263,6 @@ class AgenticDocBrowser(QMainWindow):
         self.indexer_worker = IndexerWorker(url, self.vector_store)
         self.indexer_worker.progress_signal.connect(self.drawer.update_indexing_progress)
         self.indexer_worker.status_signal.connect(self.drawer.set_status)
-        self.indexer_worker.completed_signal.connect(self.drawer.on_indexing_complete)
+        if hasattr(self.drawer, "on_indexing_complete"):
+            self.indexer_worker.completed_signal.connect(self.drawer.on_indexing_complete)
         self.indexer_worker.start()
