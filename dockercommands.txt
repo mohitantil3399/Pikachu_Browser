@@ -1,0 +1,76 @@
+Got it — here are the essential Docker container management commands you’ll want to use for SearxNG (or any container):
+
+---
+
+### ▶️ Starting / Running
+- **Run a new container** (with your config mounted):
+  ```powershell
+  docker run -d -p 8080:8080 `
+    -v ${PWD}\settings.yml:/etc/searxng/settings.yml `
+    --name searxng searxng/searxng
+  ```
+  - `-d` → detached mode (runs in background).
+  - `--name searxng` → gives the container a name so you can manage it easily.
+
+- **Start an existing container** (after stopping it):
+  ```powershell
+  docker start searxng
+  ```
+
+---
+
+### ⏹️ Stopping
+- **Stop a running container**:
+  ```powershell
+  docker stop searxng
+  ```
+
+- **Restart a container** (useful after editing `settings.yml`):
+  ```powershell
+  docker restart searxng
+  ```
+
+---
+
+### 📋 Checking Status
+- **List running containers**:
+  ```powershell
+  docker ps
+  ```
+- **List all containers (including stopped)**:
+  ```powershell
+  docker ps -a
+  ```
+
+---
+
+### 🗑️ Removing
+- **Remove a container** (after stopping it):
+  ```powershell
+  docker rm searxng
+  ```
+- **Remove the image itself** (if you want to free space):
+  ```powershell
+  docker rmi searxng/searxng
+  ```
+
+---
+
+### 🔍 Logs & Debugging
+- **View logs**:
+  ```powershell
+  docker logs searxng
+  ```
+- **Attach to container shell** (if you want to poke inside):
+  ```powershell
+  docker exec -it searxng /bin/bash
+  ```
+
+---
+
+💡 Workflow tip:  
+- For tweaking configs, you’ll usually just **edit `settings.yml` locally** → then run `docker restart searxng`.  
+- No need to rebuild the image unless you want your config baked in permanently.
+
+for invoking from terminal :
+(Invoke-WebRequest -Uri "http://localhost:8080/search?q=test&format=json").Content | ConvertFrom-Json
