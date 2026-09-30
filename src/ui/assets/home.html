@@ -4,842 +4,639 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Pikachu Browser — Agentic AI Research Browser</title>
-  <meta name="description" content="Pikachu Browser is an AI-powered agentic research browser with real-time web intelligence, document RAG, and local SearXNG search."/>
+  <meta name="description" content="Pikachu Browser — AI-powered agentic research browser with real-time web intelligence, document RAG, and local SearXNG."/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
   <style>
     :root {
-      --yellow: #f5c842;
-      --yellow-bright: #ffd740;
-      --yellow-pale: #fff5b1;
-      --bg-deep: #080c14;
-      --bg-mid: #0e1420;
-      --bg-card: #111824;
-      --border: #1e2838;
-      --text: #e8edf4;
-      --text-muted: #7d8da6;
-      --text-dim: #4b5568;
-      --accent-blue: #58a6ff;
-      --accent-red: #f87171;
-      --glow-yellow: rgba(245, 200, 66, 0.18);
-      --glow-yellow-bright: rgba(255, 215, 64, 0.35);
+      --yellow:       #f5c842;
+      --yellow-glow:  rgba(245,200,66,0.18);
+      --yellow-ring:  rgba(245,200,66,0.28);
+      --bg:           #080c14;
+      --card:         #0f1520;
+      --border:       #1c2436;
+      --text:         #e8edf4;
+      --muted:        #6b7a96;
+      --dim:          #3b4560;
+      --blue:         #58a6ff;
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    html { scroll-behavior: smooth; }
-
-    body {
+    /* ── ROOT: no scroll ── */
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
       font-family: 'Inter', sans-serif;
-      background: var(--bg-deep);
+      background: var(--bg);
       color: var(--text);
-      overflow-x: hidden;
-      min-height: 100vh;
     }
 
-    /* ── PARALLAX STARFIELD CANVAS ─────────────────────── */
-    #starfield {
+    /* ══ PARALLAX SCENE ══════════════════════════════════════ */
+    .scene {
       position: fixed;
       inset: 0;
-      z-index: 0;
-      pointer-events: none;
+      perspective: 800px;
+      overflow: hidden;
     }
 
-    /* ── PARALLAX LAYERS ──────────────────────────────── */
-    .parallax-wrap { position: relative; overflow: hidden; }
+    /* Layer 1 – furthest back – slow drift */
+    .layer-stars {
+      position: absolute;
+      inset: -20%;
+      transform-origin: center center;
+      will-change: transform;
+    }
 
-    .layer-bg {
-      position: fixed;
+    /* Layer 2 – ambient gradient radials */
+    .layer-glow {
+      position: absolute;
       inset: 0;
-      z-index: 0;
       background:
-        radial-gradient(ellipse 70% 55% at 50% 0%, rgba(245, 200, 66, 0.08) 0%, transparent 70%),
-        radial-gradient(ellipse 50% 40% at 80% 100%, rgba(88, 166, 255, 0.06) 0%, transparent 60%),
-        linear-gradient(180deg, #080c14 0%, #0a0f1a 40%, #080c14 100%);
+        radial-gradient(ellipse 60% 50% at 50% -10%, rgba(245,200,66,0.10) 0%, transparent 70%),
+        radial-gradient(ellipse 40% 30% at 85% 90%,  rgba(88,166,255,0.07) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 10% 80%,  rgba(245,100,66,0.05) 0%, transparent 60%);
       pointer-events: none;
     }
 
-    /* ── HERO SECTION ─────────────────────────────────── */
-    .hero {
-      position: relative;
+    /* Starfield canvas */
+    #starfield {
+      position: absolute;
+      inset: 0;
+      width: 100%; height: 100%;
+    }
+
+    /* ══ CENTER STAGE ════════════════════════════════════════ */
+    .stage {
+      position: fixed;
+      inset: 0;
       z-index: 10;
-      min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 60px 24px 80px;
-      text-align: center;
+      gap: 0;
+      padding: 0 20px;
+      pointer-events: none; /* children opt-in */
     }
 
-    /* Floating particles */
-    .particle {
-      position: absolute;
-      border-radius: 50%;
-      pointer-events: none;
-      animation: float-particle linear infinite;
-      opacity: 0;
-    }
-
-    @keyframes float-particle {
-      0%   { transform: translateY(100vh) scale(0); opacity: 0; }
-      10%  { opacity: 0.6; }
-      90%  { opacity: 0.3; }
-      100% { transform: translateY(-20vh) scale(1); opacity: 0; }
-    }
-
-    /* Pikachu glow ring */
-    .pika-ring {
+    /* ── Pikachu mascot ── */
+    .pika-wrap {
       position: relative;
-      width: 260px;
-      height: 260px;
-      margin: 0 auto 48px;
-      will-change: transform;
+      width: 130px; height: 130px;
+      margin-bottom: 24px;
+      pointer-events: none;
     }
 
-    .pika-ring::before {
+    /* Outer pulse ring */
+    .pika-wrap::before {
       content: '';
       position: absolute;
-      inset: -20px;
+      inset: -16px;
       border-radius: 50%;
-      background: radial-gradient(circle, rgba(245,200,66,0.25) 0%, transparent 70%);
-      animation: pulse-glow 3s ease-in-out infinite;
+      background: radial-gradient(circle, rgba(245,200,66,0.22) 0%, transparent 70%);
+      animation: pika-pulse 3.2s ease-in-out infinite;
     }
 
-    .pika-ring::after {
+    /* Rotating conic ring */
+    .pika-wrap::after {
       content: '';
       position: absolute;
-      inset: -8px;
+      inset: -6px;
       border-radius: 50%;
-      border: 1.5px solid rgba(245, 200, 66, 0.3);
-      animation: rotate-ring 20s linear infinite;
-      background: conic-gradient(from 0deg, transparent 0%, rgba(245,200,66,0.4) 30%, transparent 60%);
+      background: conic-gradient(from 0deg, transparent 0%, rgba(245,200,66,0.5) 25%, transparent 55%);
+      animation: ring-spin 12s linear infinite;
     }
 
-    @keyframes pulse-glow {
-      0%, 100% { transform: scale(1); opacity: 1; }
-      50%       { transform: scale(1.08); opacity: 0.7; }
-    }
-
-    @keyframes rotate-ring {
-      from { transform: rotate(0deg); }
-      to   { transform: rotate(360deg); }
-    }
+    @keyframes pika-pulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.1);opacity:.6} }
+    @keyframes ring-spin  { to{transform:rotate(360deg)} }
 
     .pika-img {
-      width: 100%;
-      height: 100%;
+      width: 100%; height: 100%;
       border-radius: 50%;
       object-fit: cover;
-      object-position: center 10%;
+      object-position: center 8%;
       position: relative;
       z-index: 2;
+      border: 2px solid rgba(245,200,66,0.25);
       box-shadow:
-        0 0 40px rgba(245, 200, 66, 0.25),
-        0 0 80px rgba(245, 200, 66, 0.12),
-        0 20px 60px rgba(0, 0, 0, 0.6);
-      animation: float-pika 4s ease-in-out infinite;
-      border: 2px solid rgba(245, 200, 66, 0.2);
+        0 0 32px rgba(245,200,66,0.20),
+        0 0 70px rgba(245,200,66,0.08),
+        0 16px 40px rgba(0,0,0,0.55);
+      animation: pika-float 4s ease-in-out infinite;
     }
 
-    @keyframes float-pika {
-      0%, 100% { transform: translateY(0px) rotate(-1deg); }
-      50%       { transform: translateY(-14px) rotate(1deg); }
+    @keyframes pika-float {
+      0%,100%{transform:translateY(0) rotate(-1deg)}
+      50%    {transform:translateY(-10px) rotate(1deg)}
     }
 
-    /* Badge above the title */
-    .hero-badge {
+    /* ── Badge ── */
+    .badge {
+      pointer-events: auto;
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: rgba(245, 200, 66, 0.1);
-      border: 1px solid rgba(245, 200, 66, 0.25);
+      background: rgba(245,200,66,0.09);
+      border: 1px solid rgba(245,200,66,0.22);
       border-radius: 100px;
-      padding: 5px 14px;
-      font-size: 11.5px;
+      padding: 4px 14px;
+      font-size: 11px;
       font-weight: 600;
       color: var(--yellow);
-      letter-spacing: 0.5px;
-      margin-bottom: 20px;
+      letter-spacing: .6px;
       text-transform: uppercase;
+      margin-bottom: 18px;
     }
 
-    .hero-badge .dot {
-      width: 6px;
-      height: 6px;
+    .badge .dot {
+      width: 6px; height: 6px;
       border-radius: 50%;
       background: var(--yellow);
-      animation: blink-dot 1.5s ease-in-out infinite;
+      animation: blink 1.6s ease-in-out infinite;
     }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.15} }
 
-    @keyframes blink-dot {
-      0%, 100% { opacity: 1; }
-      50%       { opacity: 0.2; }
-    }
-
-    /* Hero title */
-    .hero-title {
+    /* ── Title ── */
+    .title {
       font-family: 'Space Grotesk', sans-serif;
-      font-size: clamp(38px, 7vw, 78px);
+      font-size: clamp(32px, 5.5vw, 62px);
       font-weight: 800;
-      line-height: 1.08;
-      letter-spacing: -2px;
-      color: var(--text);
-      margin-bottom: 22px;
+      line-height: 1.07;
+      letter-spacing: -1.8px;
+      text-align: center;
+      margin-bottom: 10px;
+      pointer-events: none;
     }
 
-    .hero-title .highlight {
-      background: linear-gradient(135deg, #f5c842 0%, #ffd740 40%, #f59e0b 80%);
+    .title .hl {
+      background: linear-gradient(130deg, #f5c842 0%, #ffd740 45%, #f59e0b 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
     }
 
-    /* Subtitle */
-    .hero-sub {
-      font-size: clamp(15px, 2vw, 18px);
-      font-weight: 400;
-      color: var(--text-muted);
-      max-width: 560px;
-      margin: 0 auto 40px;
-      line-height: 1.7;
+    /* ── Subtitle ── */
+    .subtitle {
+      font-size: clamp(13px, 1.6vw, 16px);
+      color: var(--muted);
+      text-align: center;
+      max-width: 500px;
+      line-height: 1.65;
+      margin-bottom: 32px;
+      pointer-events: none;
     }
 
-    /* CTA buttons */
-    .hero-cta {
+    /* ══ BIG SEARCH BAR ═══════════════════════════════════════ */
+    .search-wrap {
+      pointer-events: auto;
+      position: relative;
+      width: min(680px, 92vw);
+      margin-bottom: 22px;
+    }
+
+    .search-bar {
+      width: 100%;
+      height: 60px;
+      background: rgba(15,21,32,0.92);
+      border: 1.5px solid var(--border);
+      border-radius: 16px;
+      padding: 0 70px 0 24px;
+      font-size: 17px;
+      font-family: 'Inter', sans-serif;
+      color: var(--text);
+      outline: none;
+      backdrop-filter: blur(12px);
+      transition: border-color .25s, box-shadow .25s;
+      caret-color: var(--yellow);
+    }
+
+    .search-bar::placeholder { color: var(--muted); }
+
+    .search-bar:focus {
+      border-color: rgba(245,200,66,0.5);
+      box-shadow: 0 0 0 3px rgba(245,200,66,0.10), 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    /* Large search icon button */
+    .search-btn {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 46px; height: 46px;
+      border-radius: 11px;
+      border: none;
+      background: linear-gradient(135deg, #f5c842, #f59e0b);
+      cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 12px;
-      flex-wrap: wrap;
-      margin-bottom: 60px;
+      font-size: 20px;
+      transition: transform .18s, box-shadow .18s, filter .18s;
+      box-shadow: 0 4px 16px rgba(245,200,66,0.35);
     }
 
-    .btn-primary {
-      background: linear-gradient(135deg, #f5c842, #f59e0b);
-      color: #0e0a00;
-      font-weight: 700;
-      font-size: 14px;
-      padding: 12px 28px;
-      border-radius: 10px;
-      border: none;
-      cursor: pointer;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      transition: all 0.2s ease;
-      box-shadow: 0 4px 20px rgba(245, 200, 66, 0.35);
-    }
-
-    .btn-primary:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 30px rgba(245, 200, 66, 0.5);
+    .search-btn:hover {
+      transform: translateY(-50%) scale(1.08);
+      box-shadow: 0 6px 24px rgba(245,200,66,0.55);
       filter: brightness(1.08);
     }
 
-    .btn-secondary {
-      background: rgba(255,255,255,0.05);
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      font-weight: 500;
-      font-size: 14px;
-      padding: 12px 24px;
-      border-radius: 10px;
-      cursor: pointer;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      transition: all 0.2s ease;
+    .search-btn:active {
+      transform: translateY(-50%) scale(0.96);
     }
 
-    .btn-secondary:hover {
-      border-color: rgba(245, 200, 66, 0.35);
-      color: var(--yellow);
-      background: rgba(245, 200, 66, 0.06);
-      transform: translateY(-2px);
+    /* keyboard hint */
+    .search-hint {
+      position: absolute;
+      right: 66px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 11px;
+      color: var(--dim);
+      pointer-events: none;
+      white-space: nowrap;
     }
 
-    /* Capability pills row */
-    .capabilities {
+    /* ── Quick links row ── */
+    .quick-row {
+      pointer-events: auto;
       display: flex;
       align-items: center;
       justify-content: center;
       flex-wrap: wrap;
       gap: 8px;
-      margin-bottom: 80px;
+      margin-bottom: 26px;
     }
 
-    .cap-pill {
+    .quick-btn {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
       background: rgba(255,255,255,0.04);
       border: 1px solid var(--border);
       border-radius: 100px;
       padding: 6px 14px;
       font-size: 12px;
       font-weight: 500;
-      color: var(--text-muted);
-      transition: all 0.2s;
+      color: var(--muted);
+      cursor: pointer;
+      text-decoration: none;
+      transition: all .2s;
     }
 
-    .cap-pill:hover {
-      border-color: rgba(245,200,66,0.3);
+    .quick-btn:hover {
+      border-color: rgba(245,200,66,0.30);
       color: var(--yellow);
       background: rgba(245,200,66,0.06);
+      transform: translateY(-2px);
     }
 
-    .cap-pill .icon { font-size: 14px; }
-
-    /* ── FEATURE GRID ──────────────────────────────────── */
-    .section {
-      position: relative;
-      z-index: 10;
-      padding: 60px 24px;
-      max-width: 1100px;
-      margin: 0 auto;
+    /* ── CTA row ── */
+    .cta-row {
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
     }
 
-    .section-title {
-      font-family: 'Space Grotesk', sans-serif;
-      font-size: clamp(24px, 4vw, 38px);
+    .btn-y {
+      background: linear-gradient(135deg, #f5c842, #f59e0b);
+      color: #0c0800;
       font-weight: 700;
-      text-align: center;
-      margin-bottom: 10px;
-      letter-spacing: -0.8px;
-    }
-
-    .section-sub {
-      text-align: center;
-      color: var(--text-muted);
-      font-size: 15px;
-      margin-bottom: 48px;
-    }
-
-    .feature-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 20px;
-    }
-
-    .feature-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 28px 26px;
-      position: relative;
-      overflow: hidden;
-      transition: all 0.3s ease;
-      cursor: default;
-    }
-
-    .feature-card::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: radial-gradient(circle at 30% 20%, var(--card-glow, rgba(245,200,66,0.06)) 0%, transparent 60%);
-      pointer-events: none;
-    }
-
-    .feature-card:hover {
-      border-color: rgba(245, 200, 66, 0.25);
-      transform: translateY(-4px);
-      box-shadow: 0 16px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(245,200,66,0.1);
-    }
-
-    .feature-card.blue { --card-glow: rgba(88,166,255,0.08); }
-    .feature-card.red  { --card-glow: rgba(248,113,113,0.08); }
-    .feature-card.green { --card-glow: rgba(74,222,128,0.08); }
-
-    .feat-icon {
-      font-size: 32px;
-      margin-bottom: 16px;
-      display: block;
-    }
-
-    .feat-title {
-      font-family: 'Space Grotesk', sans-serif;
-      font-size: 17px;
-      font-weight: 600;
-      margin-bottom: 10px;
-      color: var(--text);
-    }
-
-    .feat-desc {
       font-size: 13.5px;
-      color: var(--text-muted);
-      line-height: 1.65;
+      padding: 10px 24px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      transition: all .2s;
+      box-shadow: 0 4px 18px rgba(245,200,66,0.32);
     }
 
-    .feat-tag {
-      display: inline-block;
-      margin-top: 14px;
-      font-size: 11px;
-      font-weight: 600;
-      padding: 3px 10px;
-      border-radius: 100px;
-      background: rgba(245,200,66,0.1);
+    .btn-y:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 28px rgba(245,200,66,0.48);
+      filter: brightness(1.07);
+    }
+
+    .btn-g {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-weight: 500;
+      font-size: 13.5px;
+      padding: 10px 20px;
+      border-radius: 10px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      transition: all .2s;
+    }
+
+    .btn-g:hover {
+      border-color: rgba(245,200,66,0.30);
       color: var(--yellow);
-      border: 1px solid rgba(245,200,66,0.2);
+      background: rgba(245,200,66,0.05);
+      transform: translateY(-2px);
     }
 
-    /* ── STAT ROW ──────────────────────────────────────── */
-    .stats-row {
+    /* ══ FLOATING BOTTOM STATS BAR ══════════════════════════════ */
+    .stats-bar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      z-index: 20;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 0;
-      flex-wrap: wrap;
-      margin: 0 auto;
-      max-width: 900px;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      overflow: hidden;
+      background: rgba(8,12,20,0.85);
+      border-top: 1px solid var(--border);
+      backdrop-filter: blur(14px);
+      height: 52px;
+      padding: 0 24px;
     }
 
-    .stat-item {
-      flex: 1;
-      min-width: 160px;
-      padding: 32px 24px;
-      text-align: center;
+    .stat {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 20px;
       border-right: 1px solid var(--border);
-      position: relative;
+      height: 100%;
     }
 
-    .stat-item:last-child { border-right: none; }
+    .stat:last-child { border-right: none; }
 
     .stat-num {
       font-family: 'Space Grotesk', sans-serif;
-      font-size: 36px;
-      font-weight: 800;
+      font-size: 18px;
+      font-weight: 700;
       background: linear-gradient(135deg, #f5c842, #ffd740);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
-      display: block;
-      margin-bottom: 4px;
     }
 
     .stat-label {
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 500;
-      color: var(--text-dim);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    /* ── SEARCH BAR DEMO ───────────────────────────────── */
-    .search-demo {
-      position: relative;
-      max-width: 600px;
-      margin: 0 auto 16px;
-    }
-
-    .search-demo input {
-      width: 100%;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 16px 54px 16px 20px;
-      font-size: 15px;
-      color: var(--text-muted);
-      font-family: 'Inter', sans-serif;
-      outline: none;
-      transition: border-color 0.2s;
-    }
-
-    .search-demo input:focus {
-      border-color: rgba(245,200,66,0.4);
-      color: var(--text);
-    }
-
-    .search-demo .search-icon {
-      position: absolute;
-      right: 16px;
-      top: 50%;
-      transform: translateY(-50%);
-      font-size: 18px;
-      pointer-events: none;
-    }
-
-    /* ── BOTTOM GLOW ───────────────────────────────────── */
-    .bottom-glow {
-      position: relative;
-      z-index: 10;
-      text-align: center;
-      padding: 40px 24px 60px;
-      color: var(--text-dim);
-      font-size: 13px;
-    }
-
-    .bottom-glow a {
-      color: var(--yellow);
-      text-decoration: none;
-      font-weight: 500;
-    }
-
-    /* Divider */
-    .divider {
-      max-width: 1100px;
-      margin: 0 auto 0;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, var(--border), transparent);
-    }
-
-    /* Scrolling ticker */
-    .ticker-wrap {
-      position: relative;
-      z-index: 10;
-      overflow: hidden;
-      padding: 12px 0;
-      background: rgba(245,200,66,0.04);
-      border-top: 1px solid rgba(245,200,66,0.1);
-      border-bottom: 1px solid rgba(245,200,66,0.1);
-      margin-bottom: 0;
-    }
-
-    .ticker-inner {
-      display: flex;
-      gap: 60px;
+      color: var(--dim);
+      letter-spacing: .3px;
       white-space: nowrap;
-      animation: ticker-scroll 28s linear infinite;
     }
 
-    @keyframes ticker-scroll {
-      from { transform: translateX(0); }
-      to   { transform: translateX(-50%); }
+    /* ══ PARALLAX FLOATING PARTICLES ══════════════════════════ */
+    .particle {
+      position: fixed;
+      border-radius: 50%;
+      pointer-events: none;
+      animation: rise linear infinite;
+      opacity: 0;
     }
 
-    .ticker-item {
-      font-size: 12px;
-      font-weight: 500;
-      color: rgba(245,200,66,0.55);
-      letter-spacing: 0.3px;
-      flex-shrink: 0;
+    @keyframes rise {
+      0%   { transform: translateY(105vh) scale(0.2); opacity: 0; }
+      8%   { opacity: .55; }
+      92%  { opacity: .3; }
+      100% { transform: translateY(-10vh) scale(1); opacity: 0; }
     }
 
-    .ticker-item::before {
-      content: '⚡ ';
-      margin-right: 4px;
+    /* ── Mouse glow follower ── */
+    #mouse-glow {
+      position: fixed;
+      width: 320px; height: 320px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(245,200,66,0.07) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 5;
+      transform: translate(-50%, -50%);
+      transition: left .12s ease-out, top .12s ease-out;
+      will-change: left, top;
     }
   </style>
 </head>
 <body>
 
-<canvas id="starfield"></canvas>
-<div class="layer-bg"></div>
+<!-- Mouse glow follower -->
+<div id="mouse-glow"></div>
 
-<!-- TICKER -->
-<div class="ticker-wrap" role="marquee" aria-label="Feature highlights">
-  <div class="ticker-inner">
-    <span class="ticker-item">Active Document RAG powered by ChromaDB</span>
-    <span class="ticker-item">Local SearXNG — No tracking, no ads</span>
-    <span class="ticker-item">Groq LLM streaming with real-time tokens</span>
-    <span class="ticker-item">Sonipat Civic News · Trading Summary · Weather</span>
-    <span class="ticker-item">Tavily verified intelligence (Top 5 results)</span>
-    <span class="ticker-item">Pikachu AI Agent — Always at your side</span>
-    <span class="ticker-item">Active Document RAG powered by ChromaDB</span>
-    <span class="ticker-item">Local SearXNG — No tracking, no ads</span>
-    <span class="ticker-item">Groq LLM streaming with real-time tokens</span>
-    <span class="ticker-item">Sonipat Civic News · Trading Summary · Weather</span>
-    <span class="ticker-item">Tavily verified intelligence (Top 5 results)</span>
-    <span class="ticker-item">Pikachu AI Agent — Always at your side</span>
+<!-- ── PARALLAX SCENE (background) ── -->
+<div class="scene" aria-hidden="true">
+  <div class="layer-stars">
+    <canvas id="starfield"></canvas>
   </div>
+  <div class="layer-glow"></div>
 </div>
 
-<!-- HERO -->
-<section class="hero">
-
-  <!-- Floating particles -->
-  <div id="particles"></div>
+<!-- ── CENTER STAGE ── -->
+<main class="stage" role="main">
 
   <!-- Pikachu mascot -->
-  <div class="pika-ring" id="pikaRing">
-    <img
-      src="pikachu_hero.jpg"
-      alt="Pikachu — Nano Banana art style mascot"
-      class="pika-img"
-      id="pikaImg"
-    />
+  <div class="pika-wrap" id="pikaWrap">
+    <img src="pikachu_hero.jpg" alt="Pikachu Nano Banana mascot" class="pika-img" id="pikaImg" draggable="false"/>
   </div>
 
-  <div class="hero-badge">
-    <span class="dot"></span>
-    Pikachu Browser v1.1 · Agentic AI
-  </div>
+  <!-- Badge -->
+  <div class="badge"><span class="dot"></span>Pikachu Browser · v1.1 · Agentic AI</div>
 
-  <h1 class="hero-title">
-    Your AI Research<br/>
-    <span class="highlight">Companion</span>
+  <!-- Title -->
+  <h1 class="title">
+    Search Smarter.<br/><span class="hl">Research Deeper.</span>
   </h1>
 
-  <p class="hero-sub">
-    An intelligent agentic browser powered by local SearXNG, real-time ChromaDB document RAG,
-    and multi-provider LLM streaming. Search smarter. Research deeper.
+  <!-- Subtitle -->
+  <p class="subtitle">
+    AI-powered browser with local SearXNG, ChromaDB document RAG,
+    real-time LLM streaming, and specialized intelligence domains.
   </p>
 
-  <div class="hero-cta">
-    <a href="http://localhost:8080" class="btn-primary" id="searchBtn">
-      ⚡ Start Searching
-    </a>
-    <a href="https://kotlinlang.org/docs/kotlin-tour-collections.html" class="btn-secondary" id="docsBtn">
-      📄 Open Documentation
-    </a>
-  </div>
-
-  <!-- Search demo bar -->
-  <div class="search-demo">
+  <!-- ── BIG SEARCH BAR ── -->
+  <div class="search-wrap">
     <input
+      id="searchInput"
+      class="search-bar"
       type="text"
-      id="demoSearch"
-      placeholder="Search with SearXNG or ask Pikachu AI..."
+      placeholder="Search the web or ask Pikachu AI..."
       autocomplete="off"
+      spellcheck="false"
+      aria-label="Search"
     />
-    <span class="search-icon">🔍</span>
+    <span class="search-hint">Press ↵</span>
+    <button class="search-btn" id="searchBtn" aria-label="Search">🔍</button>
   </div>
 
-  <!-- Capability pills -->
-  <div class="capabilities" style="margin-top:20px; margin-bottom:20px;">
-    <span class="cap-pill"><span class="icon">📄</span> Page Context RAG</span>
-    <span class="cap-pill"><span class="icon">⚡</span> Groq Streaming LLM</span>
-    <span class="cap-pill"><span class="icon">🔍</span> Local SearXNG</span>
-    <span class="cap-pill"><span class="icon">📍</span> Sonipat News</span>
-    <span class="cap-pill"><span class="icon">📈</span> Trading Summary</span>
-    <span class="cap-pill"><span class="icon">⛅</span> Weather Update</span>
-    <span class="cap-pill"><span class="icon">🔒</span> Privacy First</span>
+  <!-- Quick links -->
+  <div class="quick-row">
+    <a href="http://localhost:8080" class="quick-btn">⚡ SearXNG</a>
+    <span class="quick-btn" id="pill-news" style="cursor:pointer">📍 Sonipat News</span>
+    <span class="quick-btn" id="pill-trade" style="cursor:pointer">📈 Trading</span>
+    <span class="quick-btn" id="pill-weather" style="cursor:pointer">⛅ Weather</span>
+    <span class="quick-btn" id="pill-page" style="cursor:pointer">📄 Page RAG</span>
+    <span class="quick-btn" style="cursor:default;">🔒 Private</span>
   </div>
 
-</section>
-
-<!-- STATS -->
-<div class="section" style="padding-top:0;">
-  <div class="stats-row">
-    <div class="stat-item">
-      <span class="stat-num">169</span>
-      <span class="stat-label">ChromaDB Chunks</span>
-    </div>
-    <div class="stat-item">
-      <span class="stat-num">3</span>
-      <span class="stat-label">LLM Providers</span>
-    </div>
-    <div class="stat-item">
-      <span class="stat-num">Top 5</span>
-      <span class="stat-label">Tavily Verified</span>
-    </div>
-    <div class="stat-item">
-      <span class="stat-num">4</span>
-      <span class="stat-label">Agent Domains</span>
-    </div>
+  <!-- CTA buttons -->
+  <div class="cta-row">
+    <a href="http://localhost:8080" class="btn-y" id="ctaSearch">⚡ Start Searching</a>
+    <a href="https://kotlinlang.org/docs/kotlin-tour-collections.html" class="btn-g">📄 Kotlin Docs</a>
   </div>
-</div>
 
-<!-- FEATURES -->
-<div class="section">
-  <h2 class="section-title">What Pikachu Can Do</h2>
-  <p class="section-sub">Four dedicated intelligence modes. One seamless experience.</p>
+</main>
 
-  <div class="feature-grid">
-
-    <div class="feature-card">
-      <span class="feat-icon">📄</span>
-      <div class="feat-title">Active Page Context</div>
-      <div class="feat-desc">
-        Ask questions about any webpage you're viewing. Pikachu indexes it into ChromaDB
-        and retrieves the most relevant chunks to ground every answer.
-      </div>
-      <span class="feat-tag">Default Mode</span>
-    </div>
-
-    <div class="feature-card blue">
-      <span class="feat-icon">📍</span>
-      <div class="feat-title">Locality News</div>
-      <div class="feat-desc">
-        Stay up-to-date with civic, municipal, and regional developments in Sonipat, Haryana.
-        Pre-digested into ChromaDB and verified live against Tavily top 5.
-      </div>
-      <span class="feat-tag" style="background:rgba(88,166,255,0.1);color:#58a6ff;border-color:rgba(88,166,255,0.2);">Verified Intelligence</span>
-    </div>
-
-    <div class="feature-card red">
-      <span class="feat-icon">📈</span>
-      <div class="feat-title">Trading Summary</div>
-      <div class="feat-desc">
-        Weekly market recap covering Nifty, Sensex, NASDAQ, S&amp;P 500, crypto (BTC), gold,
-        crude oil, and commodities — synthesized and verified from live sources.
-      </div>
-      <span class="feat-tag" style="background:rgba(248,113,113,0.1);color:#f87171;border-color:rgba(248,113,113,0.2);">Live Markets</span>
-    </div>
-
-    <div class="feature-card green">
-      <span class="feat-icon">⛅</span>
-      <div class="feat-title">Weather Update</div>
-      <div class="feat-desc">
-        Meteorological telemetry — temperature, humidity, AQI, wind conditions, and multi-day
-        forecasts for your region, verified against live weather sources.
-      </div>
-      <span class="feat-tag" style="background:rgba(74,222,128,0.1);color:#4ade80;border-color:rgba(74,222,128,0.2);">Real-Time</span>
-    </div>
-
-    <div class="feature-card">
-      <span class="feat-icon">🔍</span>
-      <div class="feat-title">SearXNG Privacy Search</div>
-      <div class="feat-desc">
-        Locally hosted SearXNG aggregates results from multiple engines — no tracking,
-        no ads, no API keys. Your searches stay entirely on your machine.
-      </div>
-      <span class="feat-tag">Local-First</span>
-    </div>
-
-    <div class="feature-card blue">
-      <span class="feat-icon">⚡</span>
-      <div class="feat-title">Real-Time LLM Streaming</div>
-      <div class="feat-desc">
-        Token-by-token streaming with Groq (primary) → OpenRouter (secondary) → Mistral
-        (tertiary). Circuit breakers ensure answers keep flowing even when providers fail.
-      </div>
-      <span class="feat-tag" style="background:rgba(88,166,255,0.1);color:#58a6ff;border-color:rgba(88,166,255,0.2);">Groq · qwen3.8-27b</span>
-    </div>
-
-  </div>
-</div>
-
-<div class="divider"></div>
-
-<!-- FOOTER -->
-<div class="bottom-glow">
-  <p>
-    Built with ⚡ by <a href="#">Pikachu Browser Project</a> &nbsp;·&nbsp;
-    Powered by SearXNG · ChromaDB · Groq · Tavily · PySide6
-  </p>
-  <p style="margin-top:8px; color: rgba(245,200,66,0.35); font-size:11px;">
-    Nano Banana art · Private by design · Local-first intelligence
-  </p>
-</div>
+<!-- ── BOTTOM STATS BAR ── -->
+<footer class="stats-bar" aria-label="Browser stats">
+  <div class="stat"><span class="stat-num">169</span><span class="stat-label">ChromaDB Chunks</span></div>
+  <div class="stat"><span class="stat-num">3</span><span class="stat-label">LLM Providers</span></div>
+  <div class="stat"><span class="stat-num">Top 5</span><span class="stat-label">Tavily Verified</span></div>
+  <div class="stat"><span class="stat-num">4</span><span class="stat-label">Agent Domains</span></div>
+  <div class="stat"><span class="stat-num">0ms</span><span class="stat-label">Tracking</span></div>
+</footer>
 
 <script>
-  // ── STARFIELD CANVAS ─────────────────────────────────
-  (function() {
-    const canvas = document.getElementById('starfield');
-    const ctx = canvas.getContext('2d');
-    let W, H, stars = [];
+'use strict';
 
-    function resize() {
-      W = canvas.width = window.innerWidth;
-      H = canvas.height = window.innerHeight;
+/* ══ STARFIELD ═════════════════════════════════════════════ */
+(function() {
+  const canvas = document.getElementById('starfield');
+  const ctx = canvas.getContext('2d');
+  let W, H, stars = [];
+
+  function resize() {
+    W = canvas.width  = canvas.parentElement.offsetWidth;
+    H = canvas.height = canvas.parentElement.offsetHeight;
+  }
+
+  function mkStars(n) {
+    stars = Array.from({length: n}, () => ({
+      x:  Math.random() * W,
+      y:  Math.random() * H,
+      r:  Math.random() * 1.3 + 0.2,
+      ph: Math.random() * Math.PI * 2,
+      sp: Math.random() * 0.5 + 0.08,
+      dx: (Math.random() - 0.5) * 0.08
+    }));
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    const t = performance.now() / 1000;
+    for (const s of stars) {
+      const a = (Math.sin(s.ph + t * s.sp) + 1) / 2;
+      s.x += s.dx;
+      if (s.x < 0) s.x = W;
+      if (s.x > W) s.x = 0;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,248,210,${a * 0.75 + 0.05})`;
+      ctx.fill();
     }
+    requestAnimationFrame(draw);
+  }
 
-    function initStars(n) {
-      stars = [];
-      for (let i = 0; i < n; i++) {
-        stars.push({
-          x: Math.random() * W,
-          y: Math.random() * H,
-          r: Math.random() * 1.2 + 0.2,
-          a: Math.random(),
-          sp: Math.random() * 0.4 + 0.05,
-          drift: (Math.random() - 0.5) * 0.15
-        });
-      }
-    }
+  resize();
+  mkStars(240);
+  draw();
+  window.addEventListener('resize', () => { resize(); mkStars(240); });
+})();
 
-    function drawStars() {
-      ctx.clearRect(0, 0, W, H);
-      for (let s of stars) {
-        s.a += s.sp * 0.012;
-        const alpha = (Math.sin(s.a) + 1) / 2 * 0.7 + 0.05;
-        s.x += s.drift;
-        if (s.x < 0) s.x = W;
-        if (s.x > W) s.x = 0;
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255,245,200,${alpha})`;
-        ctx.fill();
-      }
-      requestAnimationFrame(drawStars);
-    }
-
-    resize();
-    initStars(220);
-    drawStars();
-    window.addEventListener('resize', () => { resize(); initStars(220); });
-  })();
-
-  // ── FLOATING PARTICLES ───────────────────────────────
-  (function() {
-    const container = document.getElementById('particles');
-    const colors = ['#f5c842', '#ffd740', '#fff5b1', '#58a6ff', '#f87171'];
-    for (let i = 0; i < 18; i++) {
-      const p = document.createElement('div');
-      p.className = 'particle';
-      const sz = Math.random() * 5 + 2;
-      p.style.cssText = `
-        left: ${Math.random() * 100}%;
-        width: ${sz}px;
-        height: ${sz}px;
-        background: ${colors[Math.floor(Math.random() * colors.length)]};
-        animation-duration: ${Math.random() * 12 + 10}s;
-        animation-delay: ${Math.random() * -15}s;
-        filter: blur(${Math.random() * 1}px);
-        opacity: 0;
-      `;
-      container.appendChild(p);
-    }
-  })();
-
-  // ── PARALLAX MOUSE EFFECT ────────────────────────────
-  (function() {
-    const pikaRing = document.getElementById('pikaRing');
-    document.addEventListener('mousemove', e => {
-      const cx = window.innerWidth / 2;
-      const cy = window.innerHeight / 2;
-      const dx = (e.clientX - cx) / cx;
-      const dy = (e.clientY - cy) / cy;
-      pikaRing.style.transform = `translate(${dx * 10}px, ${dy * 8}px)`;
+/* ══ FLOATING PARTICLES ════════════════════════════════════ */
+(function() {
+  const colors = ['#f5c842','#ffd740','#fff5b1','#58a6ff','rgba(245,200,66,0.6)'];
+  for (let i = 0; i < 20; i++) {
+    const el = document.createElement('div');
+    el.className = 'particle';
+    const sz = Math.random() * 5 + 2;
+    Object.assign(el.style, {
+      left:              Math.random() * 100 + 'vw',
+      width:             sz + 'px',
+      height:            sz + 'px',
+      background:        colors[Math.floor(Math.random() * colors.length)],
+      animationDuration: (Math.random() * 14 + 11) + 's',
+      animationDelay:    (Math.random() * -18) + 's',
+      filter:            `blur(${Math.random() * 1.2}px)`
     });
-  })();
+    document.body.appendChild(el);
+  }
+})();
 
-  // ── SEARCH DEMO ──────────────────────────────────────
-  (function() {
-    const input = document.getElementById('demoSearch');
-    if (!input) return;
-    input.addEventListener('keydown', e => {
-      if (e.key === 'Enter') {
-        const q = input.value.trim();
-        if (q) {
-          window.location.href = 'http://localhost:8080/search?q=' + encodeURIComponent(q);
-        }
-      }
-    });
-  })();
+/* ══ MOUSE PARALLAX ════════════════════════════════════════ */
+(function() {
+  const glow   = document.getElementById('mouse-glow');
+  const pika   = document.getElementById('pikaWrap');
+  const stars  = document.querySelector('.layer-stars');
+  const glowLy = document.querySelector('.layer-glow');
+  let mx = window.innerWidth / 2, my = window.innerHeight / 2;
+  let cx = mx, cy = my;
 
-  // ── SCROLL-BASED PARALLAX LAYERS ─────────────────────
-  (function() {
-    const layerBg = document.querySelector('.layer-bg');
-    window.addEventListener('scroll', () => {
-      const y = window.scrollY;
-      layerBg.style.transform = `translateY(${y * 0.3}px)`;
-    }, { passive: true });
-  })();
+  document.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
 
-  // ── CARD TILT ON HOVER ───────────────────────────────
-  (function() {
-    document.querySelectorAll('.feature-card').forEach(card => {
-      card.addEventListener('mousemove', e => {
-        const r = card.getBoundingClientRect();
-        const x = e.clientX - r.left, y = e.clientY - r.top;
-        const rx = (y / r.height - 0.5) * 8;
-        const ry = (x / r.width - 0.5) * -8;
-        card.style.transform = `translateY(-4px) perspective(600px) rotateX(${rx}deg) rotateY(${ry}deg)`;
-      });
-      card.addEventListener('mouseleave', () => {
-        card.style.transform = '';
-      });
-    });
-  })();
+  function tick() {
+    // smooth lerp
+    cx += (mx - cx) * 0.06;
+    cy += (my - cy) * 0.06;
+
+    // mouse-glow follower
+    glow.style.left = cx + 'px';
+    glow.style.top  = cy + 'px';
+
+    // parallax offsets
+    const hw = window.innerWidth  / 2;
+    const hh = window.innerHeight / 2;
+    const dx = (cx - hw) / hw;   // -1 … 1
+    const dy = (cy - hh) / hh;
+
+    // Pikachu: subtle tilt toward cursor
+    pika.style.transform = `translate(${dx * 12}px, ${dy * 9}px)`;
+
+    // Stars layer drifts opposite (parallax depth)
+    stars.style.transform = `translate(${-dx * 18}px, ${-dy * 12}px)`;
+
+    // Glow layer shifts slightly with cursor
+    glowLy.style.backgroundPosition = `${50 + dx * 5}% ${50 + dy * 5}%`;
+
+    requestAnimationFrame(tick);
+  }
+  tick();
+})();
+
+/* ══ SEARCH ════════════════════════════════════════════════ */
+(function() {
+  const input = document.getElementById('searchInput');
+  const btn   = document.getElementById('searchBtn');
+
+  function go() {
+    const q = input.value.trim();
+    if (q) window.location.href = 'http://localhost:8080/search?q=' + encodeURIComponent(q);
+  }
+
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+  btn.addEventListener('click', go);
+
+  // Focus on load
+  setTimeout(() => input.focus(), 200);
+
+  // Quick pill pre-fills
+  const fills = {
+    'pill-news':    'What are the latest civic and regional news updates for Sonipat?',
+    'pill-trade':   'Give me the weekly trading summary for Nifty, Sensex, and global markets.',
+    'pill-weather': 'What is the current live weather and temperature forecast for Sonipat?',
+    'pill-page':    'Summarize the active document page.'
+  };
+
+  for (const [id, text] of Object.entries(fills)) {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('click', () => { input.value = text; input.focus(); });
+  }
+})();
 </script>
 </body>
 </html>
